@@ -119,7 +119,7 @@ Copper is licensed under the MIT license.
 
 
 [Plush]: https://github.com/gobuffalo/plush
-[Copper Example]: github.com/blizzy78/copperexample
+[Copper Example]: https://github.com/blizzy78/copperexample
 [net/http]: https://golang.org/pkg/net/http/
 [Gorilla]: https://github.com/gorilla/mux
 [Chi]: https://github.com/go-chi/chi
