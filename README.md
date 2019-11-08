@@ -10,7 +10,7 @@ but has more capabilities.
 Copper is agnostic of any HTTP router or any other framework and can also be used
 standalone (for example, to render e-mail messages or any other text.)
 
-Scroll down to "Usage Example" for a simple standalone example of using Copper.
+See [Usage Example](#usage-example) for a simple standalone example of using Copper.
 
 Template Language
 -----------------
