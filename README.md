@@ -19,11 +19,11 @@ Copper uses a language similar to Go which should be fairly easy to use.
 
 See [SYNTAX.md] for a full list of language constructs.
 
-Auto-Escaping Text
-------------------
+No Auto-Escaping Text
+---------------------
 
 Copper never escapes text automatically. Every time text should be rendered, it must be
-passed through one of the provided (or a custom) helper function that marks the text to be
+passed through one of the provided (or a custom) [helper function] that marks the text to be
 safe for output, optionally escaping it. While this may sound tedious when coming from other
 rendering engines, it prevents Copper from guessing (and mis-guessing) the correct escaping
 mechanism to use. Instead, the responsibility is explicitly shifted to the author of the
@@ -128,3 +128,4 @@ Copper is licensed under the MIT license.
 [Chi]: https://github.com/go-chi/chi
 [httprouter]: https://github.com/julienschmidt/httprouter
 [SYNTAX.md]: SYNTAX.md
+[helper function]: https://godoc.org/github.com/blizzy78/copper/helpers
