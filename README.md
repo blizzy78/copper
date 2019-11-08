@@ -1,3 +1,6 @@
+[![Build Status](https://travis-ci.org/blizzy78/copper.svg?branch=master)](https://travis-ci.org/blizzy78/copper) [![GoDoc](https://godoc.org/github.com/blizzy78/copper?status.svg)](https://godoc.org/github.com/blizzy78/copper)
+
+
 Copper Template Rendering Engine
 ================================
 
