@@ -63,7 +63,7 @@ const (
 func main() {
 	// a function that loads a template by name
 	// in this example, we ignore the name and always return the same template
-	load := func(name string) (io.RuneReader, error) {
+	load := func(name string) (io.Reader, error) {
 		return bufio.NewReader(strings.NewReader(tmpl)), nil
 	}
 
