@@ -1,0 +1,9 @@
+func foo(a, b)
+			  return a + b
+			end
+			for i in bar
+			  let x = foo(i, i + 1)
+			  if x >= 10
+			    break
+			  end
+			end

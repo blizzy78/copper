@@ -1,0 +1,1 @@
+let x = 123 <% let y = 234 %> let z = 345 <% foo() %> test

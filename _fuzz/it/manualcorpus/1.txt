@@ -1,0 +1,1 @@
+ aäöüÄÖÜß€ <% safe("b") %> c <% safe("d") %> e <% if 1 > 2 %> foo <% end %><% if 1 < 2 %> bar <% end %><% safe("hi") %> zzz 

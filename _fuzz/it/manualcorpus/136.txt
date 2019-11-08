@@ -1,0 +1,13 @@
+<% t("/page", {
+  "title": title,
+
+  "body": capture %>
+    <p>
+    There is a man named <% html(user.firstName + " " + user.lastName) %>, and he is <% html(user.age) %> years old.
+    </p>
+
+    <p>
+    Identifier 'user' in index.html's scope: <% html(has("user")) %><br/>
+    </p>
+  <% end
+}) %>

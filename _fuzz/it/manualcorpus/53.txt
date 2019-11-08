@@ -1,0 +1,11 @@
+if 1 > 2
+				10
+			elseif 1 > 3
+				20
+			elseif 1 > 4
+				30
+			elseif 1 > 5
+				40
+			else
+				50
+			end

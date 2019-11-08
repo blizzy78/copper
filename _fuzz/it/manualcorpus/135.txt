@@ -1,0 +1,25 @@
+<html>
+
+<head>
+<title><% html(title) %></title>
+<link rel="icon" href="data:;base64,="/>
+</head>
+
+<body>
+
+<h1><% html(title) %></h1>
+
+<% safe(body) %>
+
+<p>
+<!-- identifiers are not implicitly transferred into other template's scopes, so this prints 'false' -->
+Identifier 'user' in page.html's scope: <% html(has("user")) %>
+</p>
+
+<p>
+Request ID: <% html(requestID()) %>
+</p>
+
+</body>
+
+</html>

@@ -1,0 +1,9 @@
+if a == 5
+			   b
+			 elseif c == 6
+			   d
+			 elseif e == 7
+			   f
+			 else
+			   g
+			 end
