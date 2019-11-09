@@ -42,7 +42,6 @@ See [Copper Example] for a more complete example that integrates into [net/http]
 package main
 
 import (
-	"bufio"
 	"bytes"
 	"context"
 	"fmt"
@@ -67,7 +66,7 @@ func main() {
 	// a function that loads a template by name
 	// in this example, we ignore the name and always return the same template
 	load := func(name string) (io.Reader, error) {
-		return bufio.NewReader(strings.NewReader(tmpl)), nil
+		return strings.NewReader(tmpl), nil
 	}
 
 	// data provided to all templates rendered by the renderer,
