@@ -11,17 +11,19 @@ func BenchmarkX(b *testing.B) {
 
 	for i := 0; i < b.N; i++ {
 		b.StopTimer()
+
 		l := newLexerString(s, false, b)
+		tCh, errCh := l.Tokens()
+
 		b.StartTimer()
 
 		for {
-			var err error
-			if token, err = l.Next(); err != nil {
-				b.Fatalf("error while getting next token: %v", err)
-			}
+			select {
+			case tok := <-tCh:
+				token = tok
 
-			if token.Type == EOF {
-				break
+			case err := <-errCh:
+				b.Fatalf("error while getting next token: %v", err)
 			}
 		}
 	}

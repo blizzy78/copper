@@ -146,13 +146,8 @@ func TestParseExpression(t *testing.T) {
 
 	for i, test := range tests {
 		t.Run(strconv.Itoa(i), func(t *testing.T) {
-			p := newParserString(test.input, true, t)
-
-			prog, err := p.Parse()
-			if err != nil {
-				t.Fatalf("error parsing program: %v", err)
-			}
-
+			l := newLexerString(test.input, true, t)
+			prog := parse(l, t)
 			if prog.Statements[0].String() != test.expected {
 				t.Fatalf("wrong expression, expected=%s, got=%s", test.expected, prog.String())
 			}
@@ -177,12 +172,8 @@ func TestParseExpressionBool(t *testing.T) {
 
 	for i, test := range tests {
 		t.Run(strconv.Itoa(i), func(t *testing.T) {
-			p := newParserString(test.input, true, t)
-			prog, err := p.Parse()
-			if err != nil {
-				t.Fatalf("error parsing program: %v", err)
-			}
-
+			l := newLexerString(test.input, true, t)
+			prog := parse(l, t)
 			b := prog.Statements[0].(*ast.ExpressionStatement).Expression.(*ast.BoolLiteral)
 			if b.Value != test.expected {
 				t.Fatalf("wrong boolean literal, expected=%t, got=%t", test.expected, b.Value)
@@ -806,29 +797,7 @@ func TestParse(t *testing.T) {
 
 	for i, test := range tests {
 		t.Run(strconv.Itoa(i), func(t *testing.T) {
-			p := newParserString(test.input, true, t)
-
-			prog, err := p.Parse()
-			if err != nil {
-				t.Fatalf("error parsing program: %v", err)
-			}
-
-			testProgram(prog, &ast.Program{Statements: test.expected}, t)
-		})
-	}
-}
-
-func testProgram(actual *ast.Program, expected *ast.Program, t *testing.T) {
-	t.Helper()
-
-	if len(actual.Statements) != len(expected.Statements) {
-		t.Fatalf("wrong number of statements in program, expected=%d, got=%d",
-			len(expected.Statements), len(actual.Statements))
-	}
-
-	for i := range expected.Statements {
-		t.Run(fmt.Sprintf("statement %d", i), func(t *testing.T) {
-			testStatement(actual.Statements[i], expected.Statements[i], t)
+			testParser(test.input, true, &ast.Program{Statements: test.expected}, t)
 		})
 	}
 }
@@ -1056,12 +1025,8 @@ func testHashExpression(actual *ast.HashExpression, expected *ast.HashExpression
 func testParser(input string, startInCode bool, expected *ast.Program, t *testing.T) {
 	t.Helper()
 
-	p := newParserString(input, startInCode, t)
-
-	prog, err := p.Parse()
-	if err != nil {
-		t.Fatalf("error parsing program: %v", err)
-	}
+	l := newLexerString(input, startInCode, t)
+	prog := parse(l, t)
 
 	if len(prog.Statements) != len(expected.Statements) {
 		t.Fatalf("program does not have expected number of statements, expected=%d, got=%d",
@@ -1078,11 +1043,21 @@ func testParser(input string, startInCode bool, expected *ast.Program, t *testin
 	}
 }
 
-func newParserString(input string, startInCode bool, t *testing.T) *Parser {
-	t.Helper()
+func parse(l *lexer.Lexer, t *testing.T) (prog *ast.Program) {
+	tCh, errCh := l.Tokens()
 
-	l := newLexerString(input, startInCode, t)
-	return New(l)
+	p := New(tCh)
+
+	var err error
+	if prog, err = p.Parse(); err != nil {
+		t.Fatalf("error parsing program: %v", err)
+	}
+
+	if err = <-errCh; err != nil {
+		t.Fatalf("error parsing program (lexer): %v", err)
+	}
+
+	return
 }
 
 func newLexerString(s string, startInCode bool, t *testing.T) (l *lexer.Lexer) {

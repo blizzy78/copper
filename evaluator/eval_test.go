@@ -660,22 +660,22 @@ func evalExpr(i int, input string, startInCode bool, t *testing.T) (o interface{
 func parse(i int, input string, startInCode bool, t *testing.T) (prog *ast.Program) {
 	t.Helper()
 
-	p := newParserString(input, startInCode, t)
+	l := newLexerString(input, startInCode, t)
 
+	tCh, errCh := l.Tokens()
+
+	p := parser.New(tCh)
 	var err error
 	if prog, err = p.Parse(); err != nil {
 		t.Fatalf("[%d] error parsing program: %v", i, err)
 	}
 
+	if err = <-errCh; err != nil {
+		t.Fatalf("[%d] error parsing program (lexer): %v", i, err)
+	}
+
 	return
 
-}
-
-func newParserString(input string, startInCode bool, t *testing.T) *parser.Parser {
-	t.Helper()
-
-	l := newLexerString(input, startInCode, t)
-	return parser.New(l)
 }
 
 func newLexerString(s string, startInCode bool, t *testing.T) (l *lexer.Lexer) {

@@ -55,9 +55,37 @@ func New(r io.Reader, startInCode bool) *Lexer {
 	}
 }
 
-// Next reads from the lexer's input and returns the next token parsed from it. When the lexer has reached the end
+func (l *Lexer) Tokens() (<-chan *Token, <-chan error) {
+	tCh := make(chan *Token)
+	errCh := make(chan error)
+
+	go func() {
+		defer func() {
+			close(tCh)
+			close(errCh)
+		}()
+
+		for {
+			t, err := l.next()
+			if err != nil {
+				errCh <- err
+				break
+			}
+
+			tCh <- &t
+
+			if t.Type == EOF {
+				break
+			}
+		}
+	}()
+
+	return tCh, errCh
+}
+
+// next reads from the lexer's input and returns the next token parsed from it. When the lexer has reached the end
 // of the input, Next will return a token with type EOF.
-func (l *Lexer) Next() (t *Token, err error) {
+func (l *Lexer) next() (t Token, err error) {
 	l.initOnce.Do(func() {
 		err = l.initialize()
 	})
@@ -120,7 +148,7 @@ func (l *Lexer) Next() (t *Token, err error) {
 
 	// skip internal tokens
 	if t.Type == codeStart || t.Type == codeEnd || t.Type == lineComment {
-		t, err = l.Next()
+		t, err = l.next()
 	}
 
 	return
@@ -147,7 +175,7 @@ func (l *Lexer) skipWhitespace() (err error) {
 	return
 }
 
-func (l *Lexer) readInt() (t *Token, err error) {
+func (l *Lexer) readInt() (t Token, err error) {
 	b := strings.Builder{}
 	line := l.line
 	col := l.col
@@ -171,7 +199,7 @@ func (l *Lexer) readInt() (t *Token, err error) {
 	return
 }
 
-func (l *Lexer) readLiteralOrCodeStart() (t *Token, err error) {
+func (l *Lexer) readLiteralOrCodeStart() (t Token, err error) {
 	b := strings.Builder{}
 	line := l.line
 	col := l.col
@@ -216,7 +244,7 @@ func (l *Lexer) isAtCodeEnd() bool {
 	return l.currChar == '%' && l.nextCharIs('>')
 }
 
-func (l *Lexer) readIdent() (t *Token, err error) {
+func (l *Lexer) readIdent() (t Token, err error) {
 	b := strings.Builder{}
 	line := l.line
 	col := l.col
@@ -240,7 +268,7 @@ func (l *Lexer) readIdent() (t *Token, err error) {
 	return
 }
 
-func (l *Lexer) readString() (t *Token, err error) {
+func (l *Lexer) readString() (t Token, err error) {
 	startChar := l.currChar
 	line := l.line
 	col := l.col
@@ -291,7 +319,7 @@ func (l *Lexer) readString() (t *Token, err error) {
 	return
 }
 
-func (l *Lexer) readToken() (t *Token, err error) {
+func (l *Lexer) readToken() (t Token, err error) {
 	line := l.line
 	col := l.col
 
@@ -370,7 +398,7 @@ func (l *Lexer) readToken() (t *Token, err error) {
 	return
 }
 
-func (l *Lexer) readLineComment() (t *Token, err error) {
+func (l *Lexer) readLineComment() (t Token, err error) {
 	line := l.line
 	col := l.col
 
@@ -449,8 +477,8 @@ func (l *Lexer) nextCharIs(c rune) bool {
 	return !l.nextEOF && (l.nextChar == c)
 }
 
-func newToken(t TokenType, literal string, line int, col int) *Token {
-	return &Token{
+func newToken(t TokenType, literal string, line int, col int) Token {
+	return Token{
 		Type:    t,
 		Literal: literal,
 		Line:    line,

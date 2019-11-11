@@ -1,6 +1,8 @@
 package parser
 
 import (
+	"errors"
+
 	"github.com/blizzy78/copper/ast"
 	"github.com/blizzy78/copper/lexer"
 )
@@ -8,7 +10,7 @@ import (
 // Parser parses a stream of lexical tokens produced by a lexer, transforming them to an abstract syntax tree.
 // The abstract syntax tree can then be evaluated by an evaluator.Evaluator.
 type Parser struct {
-	l                *lexer.Lexer
+	ch               <-chan *lexer.Token
 	currToken        *lexer.Token
 	nextToken        *lexer.Token
 	prefixParseFuncs map[lexer.TokenType]prefixParseFunc
@@ -30,7 +32,7 @@ const (
 )
 
 var (
-	startToken = &lexer.Token{
+	startToken = lexer.Token{
 		Type: "START",
 	}
 
@@ -52,10 +54,9 @@ var (
 	}
 )
 
-// New returns a new parser that reads tokens from l.
-func New(l *lexer.Lexer) *Parser {
+func New(ch <-chan *lexer.Token) *Parser {
 	return &Parser{
-		l: l,
+		ch: ch,
 	}
 }
 
@@ -127,11 +128,15 @@ func (p *Parser) initialize() (err error) {
 	p.registerInfixParseFunc(lexer.LeftBracket, p.parseFieldExpression)
 
 	// prevent nil pointers
-	p.currToken = startToken
-	p.nextToken = startToken
+	p.currToken = &startToken
+	p.nextToken = &startToken
 
-	if err = p.readNextToken(); err == nil {
-		err = p.readNextToken()
+	if err = p.readNextToken(); err != nil {
+		return
+	}
+
+	if err = p.readNextToken(); err != nil {
+		return
 	}
 
 	return
@@ -166,12 +171,17 @@ func (p *Parser) nextTokenIs(t lexer.TokenType) bool {
 }
 
 func (p *Parser) readNextToken() (err error) {
+	if p.currToken == nil {
+		err = errors.New("unexpected end of input")
+		return
+	}
+
 	if p.currTokenIs(lexer.EOF) {
 		return
 	}
 
 	p.currToken = p.nextToken
-	p.nextToken, err = p.l.Next()
+	p.nextToken = <-p.ch
 
 	return
 }

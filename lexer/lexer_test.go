@@ -388,22 +388,32 @@ func TestLexerStartInLiteral(t *testing.T) {
 	}
 }
 
-func testTokenString(input string, startInCode bool, expected []expectedToken, t *testing.T) {
+func testTokenString(input string, startInCode bool, expectedTokens []expectedToken, t *testing.T) {
 	t.Helper()
 
 	l := newLexerString(input, startInCode, t)
-	for _, e := range expected {
-		tok, err := l.Next()
-		if err != nil {
+	tCh, errCh := l.Tokens()
+
+	expectedIdx := 0
+
+loop:
+	for {
+		select {
+		case tok := <-tCh:
+			expected := expectedTokens[expectedIdx]
+			expectedIdx++
+
+			if tok.Type != expected.typ || tok.Literal != expected.literal {
+				t.Fatalf("wrong token, expected=%s, got=%s", expected.String(), tok.String())
+			}
+
+			if tok.Type == EOF {
+				break loop
+			}
+
+		case err := <-errCh:
 			t.Fatalf("error reading next token: %v", err)
-		}
-
-		if tok == nil {
-			t.Fatalf("token is nil")
-		}
-
-		if tok.Type != e.typ || tok.Literal != e.literal {
-			t.Fatalf("wrong token, expected=%s, got=%s", e.String(), tok.String())
+			break loop
 		}
 	}
 }
