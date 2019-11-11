@@ -55,24 +55,36 @@ func New(r io.Reader, startInCode bool) *Lexer {
 	}
 }
 
-func (l *Lexer) Tokens() (<-chan *Token, <-chan error) {
-	tCh := make(chan *Token)
-	errCh := make(chan error)
+func (l *Lexer) Tokens() (tCh <-chan *Token, errCh <-chan error, done chan<- struct{}) {
+	tokenCh := make(chan *Token)
+	tCh = tokenCh
+
+	errorCh := make(chan error)
+	errCh = errorCh
+
+	doneCh := make(chan struct{})
+	done = doneCh
 
 	go func() {
 		defer func() {
-			close(tCh)
-			close(errCh)
+			close(tokenCh)
+			close(errorCh)
 		}()
 
+	loop:
 		for {
 			t, err := l.next()
 			if err != nil {
-				errCh <- err
+				errorCh <- err
 				break
 			}
 
-			tCh <- &t
+			select {
+			case <-doneCh:
+				break loop
+			case tokenCh <- &t:
+				// okay
+			}
 
 			if t.Type == EOF {
 				break
@@ -80,7 +92,7 @@ func (l *Lexer) Tokens() (<-chan *Token, <-chan error) {
 		}
 	}()
 
-	return tCh, errCh
+	return
 }
 
 // next reads from the lexer's input and returns the next token parsed from it. When the lexer has reached the end

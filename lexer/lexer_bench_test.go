@@ -13,14 +13,22 @@ func BenchmarkX(b *testing.B) {
 		b.StopTimer()
 
 		l := newLexerString(s, false, b)
-		tCh, errCh := l.Tokens()
+		tCh, errCh, doneCh := l.Tokens()
+
+		defer func() {
+			close(doneCh)
+		}()
 
 		b.StartTimer()
 
+	loop:
 		for {
 			select {
 			case tok := <-tCh:
 				token = tok
+				if tok.Type == EOF {
+					break loop
+				}
 
 			case err := <-errCh:
 				b.Fatalf("error while getting next token: %v", err)

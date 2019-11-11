@@ -392,7 +392,11 @@ func testTokenString(input string, startInCode bool, expectedTokens []expectedTo
 	t.Helper()
 
 	l := newLexerString(input, startInCode, t)
-	tCh, errCh := l.Tokens()
+	tCh, errCh, doneCh := l.Tokens()
+
+	defer func() {
+		close(doneCh)
+	}()
 
 	expectedIdx := 0
 

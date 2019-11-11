@@ -24,9 +24,9 @@ func benchmarkEvaluator(tmpl string, b *testing.B) {
 	})
 
 	l := lexer.New(strings.NewReader(tmpl), true)
-	tCh, errCh := l.Tokens()
+	tCh, errCh, doneCh := l.Tokens()
 
-	p := parser.New(tCh)
+	p := parser.New(tCh, doneCh)
 
 	prog, err := p.Parse()
 	if err != nil {

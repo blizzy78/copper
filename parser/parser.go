@@ -11,6 +11,7 @@ import (
 // The abstract syntax tree can then be evaluated by an evaluator.Evaluator.
 type Parser struct {
 	ch               <-chan *lexer.Token
+	doneCh           chan<- struct{}
 	currToken        *lexer.Token
 	nextToken        *lexer.Token
 	prefixParseFuncs map[lexer.TokenType]prefixParseFunc
@@ -54,15 +55,20 @@ var (
 	}
 )
 
-func New(ch <-chan *lexer.Token) *Parser {
+func New(tCh <-chan *lexer.Token, doneCh chan<- struct{}) *Parser {
 	return &Parser{
-		ch: ch,
+		ch:     tCh,
+		doneCh: doneCh,
 	}
 }
 
 // Parse reads the token stream from the underlying lexer and transforms it into an abstract syntax tree, a program.
 // The tree can be evaluated (executed) by an evaluator.Evaluator.
 func (p *Parser) Parse() (prog *ast.Program, err error) {
+	defer func() {
+		close(p.doneCh)
+	}()
+
 	if err = p.initialize(); err != nil {
 		return
 	}

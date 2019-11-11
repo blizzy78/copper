@@ -1044,9 +1044,9 @@ func testParser(input string, startInCode bool, expected *ast.Program, t *testin
 }
 
 func parse(l *lexer.Lexer, t *testing.T) (prog *ast.Program) {
-	tCh, errCh := l.Tokens()
+	tCh, errCh, doneCh := l.Tokens()
 
-	p := New(tCh)
+	p := New(tCh, doneCh)
 
 	var err error
 	if prog, err = p.Parse(); err != nil {

@@ -662,9 +662,9 @@ func parse(i int, input string, startInCode bool, t *testing.T) (prog *ast.Progr
 
 	l := newLexerString(input, startInCode, t)
 
-	tCh, errCh := l.Tokens()
+	tCh, errCh, doneCh := l.Tokens()
 
-	p := parser.New(tCh)
+	p := parser.New(tCh, doneCh)
 	var err error
 	if prog, err = p.Parse(); err != nil {
 		t.Fatalf("[%d] error parsing program: %v", i, err)
