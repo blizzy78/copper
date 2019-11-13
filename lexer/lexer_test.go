@@ -378,6 +378,17 @@ func TestLexerStartInLiteral(t *testing.T) {
 				{EOF, ""},
 			},
 		},
+		{
+			`a <% /* b */ "c" /* d */ %> e <% /* f %> g <%
+			"h" */ %> i`,
+			[]expectedToken{
+				{Literal, "a "},
+				{String, "c"},
+				{Literal, " e "},
+				{Literal, " i"},
+				{EOF, ""},
+			},
+		},
 	}
 
 	for i, test := range tests {

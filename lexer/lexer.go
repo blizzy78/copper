@@ -128,6 +128,8 @@ func (l *Lexer) next() (t Token, err error) {
 			t, err = l.readString()
 		} else if l.currChar == '/' && l.nextCharIs('/') {
 			t, err = l.readLineComment()
+		} else if l.currChar == '/' && l.nextCharIs('*') {
+			t, err = l.readBlockComment()
 		} else {
 			t, err = l.readToken()
 		}
@@ -152,7 +154,7 @@ func (l *Lexer) next() (t Token, err error) {
 	}
 
 	// skip internal tokens
-	if t.Type == codeStart || t.Type == codeEnd || t.Type == lineComment {
+	if t.Type == codeStart || t.Type == codeEnd || t.Type == lineComment || t.Type == blockComment {
 		t, err = l.next()
 	}
 
@@ -247,6 +249,10 @@ func (l *Lexer) isAtCodeStart() bool {
 
 func (l *Lexer) isAtCodeEnd() bool {
 	return l.currChar == '%' && l.nextCharIs('>')
+}
+
+func (l *Lexer) isAtBlockCommentEnd() bool {
+	return l.currChar == '*' && l.nextCharIs('/')
 }
 
 func (l *Lexer) readIdent() (t Token, err error) {
@@ -403,6 +409,56 @@ func (l *Lexer) readToken() (t Token, err error) {
 	return
 }
 
+func (l *Lexer) readBlockComment() (t Token, err error) {
+	line := l.line
+	col := l.col
+
+	if err = l.readNextChar(); err != nil {
+		return
+	}
+	if err = l.readNextChar(); err != nil {
+		return
+	}
+
+	buf := strings.Builder{}
+
+	endOk := false
+	for !l.currEOF {
+		if l.isAtBlockCommentEnd() {
+			endOk = true
+			break
+		}
+
+		if _, err = buf.WriteRune(l.currChar); err != nil {
+			break
+		}
+
+		if err = l.readNextChar(); err != nil {
+			break
+		}
+	}
+
+	if err != nil {
+		return
+	}
+
+	if !endOk {
+		err = newParseErrorf(line, col, "end of block comment not found")
+		return
+	}
+
+	if err = l.readNextChar(); err != nil {
+		return
+	}
+	if err = l.readNextChar(); err != nil {
+		return
+	}
+
+	t = newToken(blockComment, buf.String(), line, col)
+
+	return
+}
+
 func (l *Lexer) readLineComment() (t Token, err error) {
 	line := l.line
 	col := l.col
@@ -417,7 +473,7 @@ func (l *Lexer) readLineComment() (t Token, err error) {
 	buf := strings.Builder{}
 
 	for !l.currEOF && l.currChar != '\n' {
-		// if the lexer started in literal
+		// if the lexer started in literal mode, stop line comments at end of code blocks
 		if !l.startedInCode && l.isAtCodeEnd() {
 			break
 		}

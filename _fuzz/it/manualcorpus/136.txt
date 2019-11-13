@@ -1,6 +1,15 @@
 <% t("/page", {
+  // a line comment
+  // another line comment
   "title": title,
 
+  /* a block comment */
+  /* block comment
+  spans multiple lines */
+  /*
+  yet another
+  block comment
+  */
   "body": capture %>
     <p>
     There is a man named <% html(user.firstName + " " + user.lastName) %>, and he is <% html(user.age) %> years old.
