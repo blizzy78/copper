@@ -7,7 +7,8 @@ import (
 	"sync"
 )
 
-// Lexer parses a series of statements or expressions, a template, from a reader and returns them as a stream of lexical tokens.
+// Lexer parses a series of statements or expressions, a template, from a reader and returns them
+// as a sequence of lexical tokens.
 type Lexer struct {
 	r             io.RuneReader
 	line          int
@@ -55,6 +56,9 @@ func New(r io.Reader, startInCode bool) *Lexer {
 	}
 }
 
+// Tokens reads from the lexer's input and writes a sequence of tokens into tCh. If an error occurs
+// when producing tokens, the error is associated with the next token in the channel. Token production
+// stops when there was an error, or when the done channel is closed.
 func (l *Lexer) Tokens() (tCh <-chan *Token, done chan<- struct{}) {
 	tokenCh := make(chan *Token)
 	tCh = tokenCh
@@ -86,8 +90,6 @@ func (l *Lexer) Tokens() (tCh <-chan *Token, done chan<- struct{}) {
 	return
 }
 
-// next reads from the lexer's input and returns the next token parsed from it. When the lexer has reached the end
-// of the input, Next will return a token with type EOF.
 func (l *Lexer) next() (t Token, err error) {
 	l.initOnce.Do(func() {
 		err = l.initialize()

@@ -5,8 +5,8 @@ import (
 	"github.com/blizzy78/copper/lexer"
 )
 
-// Parser parses a stream of lexical tokens produced by a lexer, transforming them to an abstract syntax tree.
-// The abstract syntax tree can then be evaluated by an evaluator.Evaluator.
+// Parser parses a sequence of lexical tokens produced by a lexer, transforming them to an
+// abstract syntax tree. The tree can then be evaluated (executed) by an evaluator.Evaluator.
 type Parser struct {
 	ch               <-chan *lexer.Token
 	doneCh           chan<- struct{}
@@ -53,6 +53,8 @@ var (
 	}
 )
 
+// New returns a new parser that reads a sequence of tokens from tCh. When the parser is done parsing,
+// or when an error occurred, it closes doneCh.
 func New(tCh <-chan *lexer.Token, doneCh chan<- struct{}) *Parser {
 	return &Parser{
 		ch:     tCh,
@@ -60,7 +62,7 @@ func New(tCh <-chan *lexer.Token, doneCh chan<- struct{}) *Parser {
 	}
 }
 
-// Parse reads the token stream from the underlying lexer and transforms it into an abstract syntax tree, a program.
+// Parse reads the sequence of tokens and transforms it into an abstract syntax tree, a program.
 // The tree can be evaluated (executed) by an evaluator.Evaluator.
 func (p *Parser) Parse() (prog *ast.Program, err error) {
 	defer func() {
