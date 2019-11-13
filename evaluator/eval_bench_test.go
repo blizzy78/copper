@@ -24,17 +24,13 @@ func benchmarkEvaluator(tmpl string, b *testing.B) {
 	})
 
 	l := lexer.New(strings.NewReader(tmpl), true)
-	tCh, errCh, doneCh := l.Tokens()
+	tCh, doneCh := l.Tokens()
 
 	p := parser.New(tCh, doneCh)
 
 	prog, err := p.Parse()
 	if err != nil {
 		b.Fatalf("error parsing program: %v", err)
-	}
-
-	if err := <-errCh; err != nil {
-		b.Fatalf("error parsing program (lexer): %v", err)
 	}
 
 	e := &Evaluator{}

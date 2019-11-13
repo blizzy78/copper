@@ -171,16 +171,12 @@ func newTemplateScope(data map[string]interface{}, parent *scope.Scope) (s *scop
 func render(r io.Reader, s *scope.Scope, ls evaluator.LiteralStringFunc, ra evaluator.ResolveArgumentFunc) (o interface{}, err error) {
 	l := lexer.New(r, false)
 
-	tCh, errCh, doneCh := l.Tokens()
+	tCh, doneCh := l.Tokens()
 
 	p := parser.New(tCh, doneCh)
 
 	var prog *ast.Program
 	if prog, err = p.Parse(); err != nil {
-		return
-	}
-
-	if err = <-errCh; err != nil {
 		return
 	}
 

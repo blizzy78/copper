@@ -392,7 +392,7 @@ func testTokenString(input string, startInCode bool, expectedTokens []expectedTo
 	t.Helper()
 
 	l := newLexerString(input, startInCode, t)
-	tCh, errCh, doneCh := l.Tokens()
+	tCh, doneCh := l.Tokens()
 
 	defer func() {
 		close(doneCh)
@@ -401,22 +401,19 @@ func testTokenString(input string, startInCode bool, expectedTokens []expectedTo
 	expectedIdx := 0
 
 loop:
-	for {
-		select {
-		case tok := <-tCh:
-			expected := expectedTokens[expectedIdx]
-			expectedIdx++
+	for tok := range tCh {
+		if tok.Err != nil {
+			t.Fatalf("error reading next token: %v", tok.Err)
+		}
 
-			if tok.Type != expected.typ || tok.Literal != expected.literal {
-				t.Fatalf("wrong token, expected=%s, got=%s", expected.String(), tok.String())
-			}
+		expected := expectedTokens[expectedIdx]
+		expectedIdx++
 
-			if tok.Type == EOF {
-				break loop
-			}
+		if tok.Type != expected.typ || tok.Literal != expected.literal {
+			t.Fatalf("wrong token, expected=%s, got=%s", expected.String(), tok.String())
+		}
 
-		case err := <-errCh:
-			t.Fatalf("error reading next token: %v", err)
+		if tok.Type == EOF {
 			break loop
 		}
 	}

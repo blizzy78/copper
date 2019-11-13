@@ -1044,17 +1044,13 @@ func testParser(input string, startInCode bool, expected *ast.Program, t *testin
 }
 
 func parse(l *lexer.Lexer, t *testing.T) (prog *ast.Program) {
-	tCh, errCh, doneCh := l.Tokens()
+	tCh, doneCh := l.Tokens()
 
 	p := New(tCh, doneCh)
 
 	var err error
 	if prog, err = p.Parse(); err != nil {
 		t.Fatalf("error parsing program: %v", err)
-	}
-
-	if err = <-errCh; err != nil {
-		t.Fatalf("error parsing program (lexer): %v", err)
 	}
 
 	return

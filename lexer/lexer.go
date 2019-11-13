@@ -55,28 +55,19 @@ func New(r io.Reader, startInCode bool) *Lexer {
 	}
 }
 
-func (l *Lexer) Tokens() (tCh <-chan *Token, errCh <-chan error, done chan<- struct{}) {
+func (l *Lexer) Tokens() (tCh <-chan *Token, done chan<- struct{}) {
 	tokenCh := make(chan *Token)
 	tCh = tokenCh
-
-	errorCh := make(chan error)
-	errCh = errorCh
 
 	doneCh := make(chan struct{})
 	done = doneCh
 
 	go func() {
-		defer func() {
-			close(tokenCh)
-			close(errorCh)
-		}()
-
 	loop:
 		for {
 			t, err := l.next()
 			if err != nil {
-				errorCh <- err
-				break
+				t.Err = err
 			}
 
 			select {
@@ -86,7 +77,7 @@ func (l *Lexer) Tokens() (tCh <-chan *Token, errCh <-chan error, done chan<- str
 				// okay
 			}
 
-			if t.Type == EOF {
+			if t.Type == EOF || t.Err != nil {
 				break
 			}
 		}

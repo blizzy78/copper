@@ -7,6 +7,7 @@ type Token struct {
 	Literal string
 	Line    int
 	Col     int
+	Err     error
 }
 
 type TokenType string

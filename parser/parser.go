@@ -1,8 +1,6 @@
 package parser
 
 import (
-	"errors"
-
 	"github.com/blizzy78/copper/ast"
 	"github.com/blizzy78/copper/lexer"
 )
@@ -177,17 +175,21 @@ func (p *Parser) nextTokenIs(t lexer.TokenType) bool {
 }
 
 func (p *Parser) readNextToken() (err error) {
-	if p.currToken == nil {
-		err = errors.New("unexpected end of input")
-		return
-	}
-
 	if p.currTokenIs(lexer.EOF) {
 		return
 	}
 
 	p.currToken = p.nextToken
+
+	if p.currTokenIs(lexer.EOF) {
+		return
+	}
+
 	p.nextToken = <-p.ch
+
+	if p.nextToken.Err != nil {
+		return p.nextToken.Err
+	}
 
 	return
 }
