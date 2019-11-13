@@ -81,6 +81,7 @@ func (s *Scope) Lock() {
 	s.locked = true
 }
 
+// ClearSelf removes all values associated with this scope, not including any parent scopes.
 func (s *Scope) ClearSelf() {
 	if s.values != nil {
 		for k := range s.values {

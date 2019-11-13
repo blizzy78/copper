@@ -29,6 +29,7 @@ func newParseErrorf(line int, col int, s string, args ...interface{}) *parseErro
 	return newParseError(e, line, col)
 }
 
+// IsParseError returns whether e is a parse error that occurred in the parser.
 func IsParseError(e error) bool {
 	var pe *parseError
 	return errors.As(e, &pe)

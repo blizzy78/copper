@@ -23,7 +23,7 @@ type Renderer struct {
 	templateFuncName string
 }
 
-// LoadFunc is the type of a function that loads a template with a specific name and returns it as a rune reader.
+// LoadFunc is the type of a function that loads a template with a specific name and returns it as a reader.
 type LoadFunc func(name string) (r io.Reader, err error)
 
 // SafeString encapsulates a regular string to mark it as safe for output.
