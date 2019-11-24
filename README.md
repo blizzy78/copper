@@ -83,7 +83,7 @@ func main() {
 	// construct a new renderer
 	// t() will be a function that can be called in template code to
 	// render other templates at that location
-	r := template.NewRenderer(load, nil, scopeData, "t")
+	r := template.NewRenderer(load, template.WithScopeData(scopeData))
 
 	// a context that can be used by template helper functions
 	// the renderer does not use it
