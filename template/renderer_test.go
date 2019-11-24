@@ -9,6 +9,7 @@ import (
 
 	"github.com/matryer/is"
 
+	"github.com/blizzy78/copper/evaluator"
 	"github.com/blizzy78/copper/scope"
 )
 
@@ -29,7 +30,7 @@ func TestRenderer_Render(t *testing.T) {
 		"safe": safe,
 	}
 
-	r := NewRenderer(load, nil, scopeData, "t")
+	r := NewRenderer(load, WithScopeData(scopeData))
 
 	buf := bytes.Buffer{}
 
@@ -52,7 +53,7 @@ func TestRender(t *testing.T) {
 		return SafeString(s), nil
 	}
 
-	if err := Render(bytes.NewReader([]byte(tmpl)), &w, nil, &s, ls, nil); err != nil {
+	if err := Render(strings.NewReader(tmpl), &w, nil, &s, evaluator.WithLiteralStringFunc(ls)); err != nil {
 		t.Fatalf("error while rendering: %v", err)
 	}
 

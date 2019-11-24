@@ -12,7 +12,7 @@ func BenchmarkX(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		b.StopTimer()
 
-		l := newLexerString(s, false, b)
+		l := newLexerString(s, b)
 		tCh, doneCh := l.Tokens()
 
 		defer func() {

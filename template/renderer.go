@@ -26,31 +26,57 @@ type Renderer struct {
 // LoadFunc is the type of a function that loads a template with a specific name and returns it as a reader.
 type LoadFunc func(name string) (r io.Reader, err error)
 
+// Opt is the type of a function that configures r.
+type Opt func(r *Renderer)
+
 // SafeString encapsulates a regular string to mark it as safe for output.
 // If template code tries to output a regular string, it will be rendered only as "!UNSAFE!".
 // Instead, regular strings must be wrapped in SafeString to render them as expected.
 // Before wrapping in SafeString, strings should be HTML-escaped etc., depending on the output's language.
 type SafeString string
 
-// NewRenderer returns a new template renderer that loads templates using a load function.
+// NewRenderer returns a new renderer, configured with opts, that loads templates via load.
+func NewRenderer(load LoadFunc, opts ...Opt) *Renderer {
+	r := &Renderer{
+		load:             load,
+		templateFuncName: "t",
+	}
+
+	for _, opt := range opts {
+		opt(r)
+	}
+
+	return r
+}
+
+// WithResolveArgumentFunc configures a renderer to use r to automatically resolve additional arguments of
+// method or function calls in a template. The default is to only resolve the current scope.Scope.
+func WithResolveArgumentFunc(r evaluator.ResolveArgumentFunc) Opt {
+	return func(rend *Renderer) {
+		rend.resolveArg = r
+	}
+}
+
+// WithScopeData configures a renderer to provide additional data to all templates being rendered.
+func WithScopeData(data map[string]interface{}) Opt {
+	return func(r *Renderer) {
+		r.scopeData = data
+	}
+}
+
+// WithTemplateFuncName configures a renderer to use n as the name of the function that may be called in
+// templates to render other templates. The default name of this function is "t".
 //
-// resolveArg may be nil, in which case no additional method or function call arguments can be resolved automatically.
-//
-// scopeData is a map of values that is provided to all templates being rendered. The values are provided as a scope
-// to the evaluator.
-//
-// templateFuncName is the name of a function that can be called in a template to render another template.
 // The signature of that function is as follows:
 //
 // 		func(name string, data map[string]interface{}) SafeString
 //
-// The data map is again provided as the scopeData argument to the new renderer.
-func NewRenderer(load LoadFunc, resolveArg evaluator.ResolveArgumentFunc, scopeData map[string]interface{}, templateFuncName string) *Renderer {
-	return &Renderer{
-		load:             load,
-		resolveArg:       resolveArg,
-		scopeData:        scopeData,
-		templateFuncName: templateFuncName,
+// where name is the name of the template to render.
+//
+// The data map is in turn provided to the new renderer using WithScopeData.
+func WithTemplateFuncName(n string) Opt {
+	return func(r *Renderer) {
+		r.templateFuncName = n
 	}
 }
 
@@ -106,24 +132,13 @@ func (r *Renderer) Render(ctx context.Context, w io.Writer, name string, data ma
 	}
 
 	ra := func(t reflect.Type) (v interface{}, err error) {
-		return r.resolve(t, ctx)
+		return resolveContext(t, ctx)
 	}
 
-	if err = Render(rd, w, data, &rendererScope, ls, ra); err != nil {
+	if err = Render(rd, w, data, &rendererScope, evaluator.WithLiteralStringFunc(ls), evaluator.WithResolveArgumentFunc(ra)); err != nil {
 		err = fmt.Errorf("error rendering template %s: %w", name, err)
 	}
 
-	return
-}
-
-func (r *Renderer) resolve(t reflect.Type, ctx context.Context) (v interface{}, err error) {
-	if reflect.ValueOf(ctx).Type().ConvertibleTo(t) {
-		v = ctx
-	} else if r.resolveArg != nil {
-		v, err = r.resolveArg(t)
-	} else {
-		err = fmt.Errorf("cannot resolve argument of type: %s", t.String())
-	}
 	return
 }
 
@@ -131,17 +146,19 @@ func (r *Renderer) resolve(t reflect.Type, ctx context.Context) (v interface{}, 
 // and writes the output to w. Literal output is passed to ls so that it may be escaped and wrapped in
 // SafeString. If ra is nil, no additional arguments can be resolved in method or function calls in
 // template code.
-func Render(r io.Reader, w io.Writer, data map[string]interface{}, s *scope.Scope,
-	ls evaluator.LiteralStringFunc, ra evaluator.ResolveArgumentFunc) (err error) {
-
+func Render(r io.Reader, w io.Writer, data map[string]interface{}, s *scope.Scope, evaluatorOpts ...evaluator.Opt) (err error) {
 	templateScope := newTemplateScope(data, s)
 
-	templateRA := func(t reflect.Type) (v interface{}, err error) {
-		return resolve(t, templateScope, ra)
+	ra := func(t reflect.Type) (v interface{}, err error) {
+		return resolveScope(t, templateScope)
 	}
 
+	newEvaluatorOpts := make([]evaluator.Opt, 0, len(evaluatorOpts)+1)
+	newEvaluatorOpts = append(newEvaluatorOpts, evaluator.WithResolveArgumentFunc(ra))
+	newEvaluatorOpts = append(newEvaluatorOpts, evaluatorOpts...)
+
 	var o interface{}
-	if o, err = render(r, templateScope, ls, evaluator.ResolveArgumentFunc(templateRA)); err != nil {
+	if o, err = render(r, templateScope, newEvaluatorOpts...); err != nil {
 		return
 	}
 
@@ -168,8 +185,8 @@ func newTemplateScope(data map[string]interface{}, parent *scope.Scope) (s *scop
 	return
 }
 
-func render(r io.Reader, s *scope.Scope, ls evaluator.LiteralStringFunc, ra evaluator.ResolveArgumentFunc) (o interface{}, err error) {
-	l := lexer.New(r, false)
+func render(r io.Reader, s *scope.Scope, evaluatorOpts ...evaluator.Opt) (o interface{}, err error) {
+	l := lexer.New(r)
 
 	tCh, doneCh := l.Tokens()
 
@@ -185,10 +202,7 @@ func render(r io.Reader, s *scope.Scope, ls evaluator.LiteralStringFunc, ra eval
 		capture(prog.Statements),
 	}
 
-	ev := evaluator.Evaluator{
-		LiteralStringFunc:   ls,
-		ResolveArgumentFunc: ra,
-	}
+	ev := evaluator.New(evaluatorOpts...)
 	o, err = ev.Eval(prog, s)
 
 	return
@@ -204,11 +218,16 @@ func capture(statements []ast.Statement) ast.Statement {
 	}
 }
 
-func resolve(t reflect.Type, s *scope.Scope, parent evaluator.ResolveArgumentFunc) (v interface{}, err error) {
+func resolveContext(t reflect.Type, ctx context.Context) (v interface{}, err error) {
+	if reflect.ValueOf(ctx).Type().ConvertibleTo(t) {
+		v = ctx
+	}
+	return
+}
+
+func resolveScope(t reflect.Type, s *scope.Scope) (v interface{}, err error) {
 	if reflect.ValueOf(s).Type().ConvertibleTo(t) {
 		v = s
-	} else if parent != nil {
-		v, err = parent(t)
 	}
 	return
 }

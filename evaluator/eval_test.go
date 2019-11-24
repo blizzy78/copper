@@ -60,7 +60,7 @@ func TestEvalIntExpression(t *testing.T) {
 	}
 
 	for i, test := range tests {
-		o := evalExpr(i, test.input, true, t)
+		o := evalExpr(i, test.input, t, lexer.WithStartInCodeMode())
 		testObject(i, o, test.expected, t)
 	}
 }
@@ -105,7 +105,7 @@ func TestEvalBoolExpression(t *testing.T) {
 	}
 
 	for i, test := range tests {
-		o := evalExpr(i, test.input, true, t)
+		o := evalExpr(i, test.input, t, lexer.WithStartInCodeMode())
 		testObject(i, o, test.expected, t)
 	}
 }
@@ -121,7 +121,7 @@ func TestEvalStringExpression(t *testing.T) {
 	}
 
 	for i, test := range tests {
-		o := evalExpr(i, test.input, true, t)
+		o := evalExpr(i, test.input, t, lexer.WithStartInCodeMode())
 		testObject(i, o, test.expected, t)
 	}
 }
@@ -181,7 +181,7 @@ func TestEvalIfExpression(t *testing.T) {
 	}
 
 	for i, test := range tests {
-		o := evalExpr(i, test.input, true, t)
+		o := evalExpr(i, test.input, t, lexer.WithStartInCodeMode())
 		testObject(i, o, test.expected, t)
 	}
 }
@@ -207,7 +207,7 @@ func TestLetStatement(t *testing.T) {
 			Field: 5,
 		})
 
-		o := evalWithScope(i, test.input, true, &s, t)
+		o := evalWithScope(i, test.input, &s, t, lexer.WithStartInCodeMode())
 
 		if o != nil {
 			t.Fatalf("[%d] did not return nil", i)
@@ -262,7 +262,7 @@ func TestIdentExpression(t *testing.T) {
 			s.Set(k, v)
 		}
 
-		o := evalWithScope(i, test.input, true, &s, t)
+		o := evalWithScope(i, test.input, &s, t, lexer.WithStartInCodeMode())
 		testObject(i, o, test.expected, t)
 	}
 }
@@ -362,7 +362,7 @@ func TestFieldExpression(t *testing.T) {
 			s.Set(k, v)
 		}
 
-		o := evalWithScope(i, test.input, true, &s, t)
+		o := evalWithScope(i, test.input, &s, t, lexer.WithStartInCodeMode())
 		testObject(i, o, test.expected, t)
 	}
 }
@@ -411,7 +411,7 @@ func TestCallExpression(t *testing.T) {
 			return a * b
 		})
 
-		o := evalWithScope(i, test.input, true, &s, t)
+		o := evalWithScope(i, test.input, &s, t, lexer.WithStartInCodeMode())
 		testObject(i, o, test.expected, t)
 	}
 }
@@ -473,7 +473,7 @@ func TestForStatement(t *testing.T) {
 
 		s.Set("range", ranger.NewInt)
 
-		evalWithScope(i, test.input, true, &s, t)
+		evalWithScope(i, test.input, &s, t, lexer.WithStartInCodeMode())
 		v, _ := s.Value("x")
 		testObject(i, v, test.expected, t)
 	}
@@ -505,7 +505,7 @@ func TestCaptureExpression(t *testing.T) {
 	for i, test := range tests {
 		s := scope.Scope{}
 
-		evalWithScope(i, test.input, true, &s, t)
+		evalWithScope(i, test.input, &s, t, lexer.WithStartInCodeMode())
 		v, _ := s.Value("x")
 		testObject(i, v, test.expected, t)
 	}
@@ -532,7 +532,7 @@ func TestStartInLiteral(t *testing.T) {
 	for i, test := range tests {
 		s := scope.Scope{}
 
-		evalWithScope(i, test.input, false, &s, t)
+		evalWithScope(i, test.input, &s, t)
 		v, _ := s.Value("x")
 		testObject(i, v, test.expected, t)
 	}
@@ -626,12 +626,12 @@ func testScopeValue(i int, s *scope.Scope, name string, expected interface{}, t 
 	}
 }
 
-func evalWithScope(i int, input string, startInCode bool, s *scope.Scope, t *testing.T) (o interface{}) {
+func evalWithScope(i int, input string, s *scope.Scope, t *testing.T, lexerOpts ...lexer.Opt) (o interface{}) {
 	t.Helper()
 
-	prog := parse(i, input, startInCode, t)
+	prog := parse(i, input, t, lexerOpts...)
 
-	ev := Evaluator{}
+	ev := New()
 
 	var err error
 	if o, err = ev.Eval(prog, s); err != nil {
@@ -641,13 +641,13 @@ func evalWithScope(i int, input string, startInCode bool, s *scope.Scope, t *tes
 	return
 }
 
-func evalExpr(i int, input string, startInCode bool, t *testing.T) (o interface{}) {
+func evalExpr(i int, input string, t *testing.T, lexerOpts ...lexer.Opt) (o interface{}) {
 	t.Helper()
 
-	prog := parse(i, input, startInCode, t)
+	prog := parse(i, input, t, lexerOpts...)
 	expr := prog.Statements[0].(*ast.ExpressionStatement).Expression
 
-	ev := Evaluator{}
+	ev := New()
 
 	var err error
 	if o, err = ev.Eval(expr, &scope.Scope{}); err != nil {
@@ -657,10 +657,10 @@ func evalExpr(i int, input string, startInCode bool, t *testing.T) (o interface{
 	return
 }
 
-func parse(i int, input string, startInCode bool, t *testing.T) (prog *ast.Program) {
+func parse(i int, input string, t *testing.T, lexerOpts ...lexer.Opt) (prog *ast.Program) {
 	t.Helper()
 
-	l := newLexerString(input, startInCode, t)
+	l := newLexerString(input, t, lexerOpts...)
 
 	tCh, doneCh := l.Tokens()
 
@@ -674,9 +674,9 @@ func parse(i int, input string, startInCode bool, t *testing.T) (prog *ast.Progr
 
 }
 
-func newLexerString(s string, startInCode bool, t *testing.T) (l *lexer.Lexer) {
+func newLexerString(s string, t *testing.T, opts ...lexer.Opt) (l *lexer.Lexer) {
 	t.Helper()
 
 	r := bytes.NewReader([]byte(s))
-	return lexer.New(r, startInCode)
+	return lexer.New(r, opts...)
 }

@@ -23,7 +23,7 @@ func benchmarkEvaluator(tmpl string, b *testing.B) {
 		return strconv.FormatInt(i, 10)
 	})
 
-	l := lexer.New(strings.NewReader(tmpl), true)
+	l := lexer.New(strings.NewReader(tmpl), lexer.WithStartInCodeMode())
 	tCh, doneCh := l.Tokens()
 
 	p := parser.New(tCh, doneCh)
@@ -33,7 +33,7 @@ func benchmarkEvaluator(tmpl string, b *testing.B) {
 		b.Fatalf("error parsing program: %v", err)
 	}
 
-	e := &Evaluator{}
+	e := New()
 
 	b.StartTimer()
 

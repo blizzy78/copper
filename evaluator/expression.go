@@ -46,12 +46,7 @@ func (ev *Evaluator) evalExpression(e ast.Expression) (o interface{}, err error)
 }
 
 func (ev *Evaluator) evalLiteral(l ast.Literal) (o interface{}, err error) {
-	f := ev.LiteralStringFunc
-	if f == nil {
-		f = defaultLiteral
-	}
-
-	return f(l.Text)
+	return ev.literalStringFunc(l.Text)
 }
 
 func (ev *Evaluator) evalIdentExpression(i ast.Ident) (o interface{}, err error) {
@@ -206,23 +201,27 @@ func (ev *Evaluator) evalCallExpression(c ast.CallExpression) (o interface{}, er
 		return
 	}
 
-	if ev.ResolveArgumentFunc != nil {
-		for i := len(c.Params); i < numExpectedParams; i++ {
-			pType := fValueType.In(i)
+	for i := len(c.Params); i < numExpectedParams; i++ {
+		pType := fValueType.In(i)
 
-			var v interface{}
-			if v, err = ev.ResolveArgumentFunc(pType); err != nil {
+		var v interface{}
+		for _, ra := range ev.resolveArgumentFuncs {
+			if v, err = ra(pType); v != nil || err != nil {
 				break
 			}
+		}
 
-			if v != nil {
-				vValue := reflect.ValueOf(v)
-				pValue := vValue.Convert(pType)
-				params = append(params, pValue)
-			} else {
-				nilValue := reflect.New(pType).Elem()
-				params = append(params, nilValue)
-			}
+		if err != nil {
+			break
+		}
+
+		if v != nil {
+			vValue := reflect.ValueOf(v)
+			pValue := vValue.Convert(pType)
+			params = append(params, pValue)
+		} else {
+			nilValue := reflect.New(pType).Elem()
+			params = append(params, nilValue)
 		}
 	}
 
@@ -288,6 +287,10 @@ func (ev *Evaluator) evalHashExpression(h ast.HashExpression) (o interface{}, er
 
 func defaultLiteral(s string) (interface{}, error) {
 	return s, nil
+}
+
+func defaultResolve(t reflect.Type) (interface{}, error) {
+	return nil, nil
 }
 
 func toSingleOrSliceObject(objs []interface{}) (s interface{}) {

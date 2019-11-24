@@ -333,7 +333,7 @@ gh  `},
 	for i, test := range tests {
 		test := test
 		t.Run(strconv.Itoa(i), func(t *testing.T) {
-			testTokenString(test.input, true, test.expected, t)
+			testTokenString(test.input, test.expected, t, WithStartInCodeMode())
 		})
 	}
 }
@@ -394,15 +394,15 @@ func TestLexerStartInLiteral(t *testing.T) {
 	for i, test := range tests {
 		test := test
 		t.Run(strconv.Itoa(i), func(t *testing.T) {
-			testTokenString(test.input, false, test.expected, t)
+			testTokenString(test.input, test.expected, t)
 		})
 	}
 }
 
-func testTokenString(input string, startInCode bool, expectedTokens []expectedToken, t *testing.T) {
+func testTokenString(input string, expectedTokens []expectedToken, t *testing.T, opts ...Opt) {
 	t.Helper()
 
-	l := newLexerString(input, startInCode, t)
+	l := newLexerString(input, t, opts...)
 	tCh, doneCh := l.Tokens()
 
 	defer func() {
@@ -430,11 +430,11 @@ loop:
 	}
 }
 
-func newLexerString(s string, startInCode bool, tb testing.TB) (l *Lexer) {
+func newLexerString(s string, tb testing.TB, opts ...Opt) (l *Lexer) {
 	tb.Helper()
 
 	r := bytes.NewReader([]byte(s))
-	return New(r, startInCode)
+	return New(r, opts...)
 }
 
 func (e *expectedToken) String() string {

@@ -10,17 +10,21 @@ import (
 // Lexer parses a series of statements or expressions, a template, from a reader and returns them
 // as a sequence of lexical tokens.
 type Lexer struct {
-	r             io.RuneReader
-	line          int
-	col           int
-	startedInCode bool
-	inCode        bool
-	initOnce      sync.Once
-	currChar      rune
-	nextChar      rune
-	currEOF       bool
-	nextEOF       bool
+	r              io.RuneReader
+	optStartInCode bool
+	line           int
+	col            int
+	startedInCode  bool
+	inCode         bool
+	initOnce       sync.Once
+	currChar       rune
+	nextChar       rune
+	currEOF        bool
+	nextEOF        bool
 }
+
+// Opt is the type of a function that configures an option of l.
+type Opt func(l *Lexer)
 
 var (
 	keywords = map[string]TokenType{
@@ -46,13 +50,27 @@ var (
 	}
 )
 
-// New returns a new lexer that reads a template from r. If startInCode is false, the lexer starts
-// in literal mode. In this case, "<%" must be used in the template to switch to code mode.
-func New(r io.Reader, startInCode bool) *Lexer {
-	return &Lexer{
-		r:             bufio.NewReader(r),
-		startedInCode: startInCode,
-		inCode:        startInCode,
+// New returns a new lexer, configured with opts, that reads a template from r.
+func New(r io.Reader, opts ...Opt) *Lexer {
+	l := &Lexer{
+		r: bufio.NewReader(r),
+	}
+
+	for _, opt := range opts {
+		opt(l)
+	}
+
+	l.startedInCode = l.optStartInCode
+	l.inCode = l.optStartInCode
+
+	return l
+}
+
+// WithStartInCodeMode configures a lexer to start in code mode. The default is to start in literal mode.
+// If the lexer starts in literal mode, code blocks (<% %>) must be used to switch to code mode.
+func WithStartInCodeMode() Opt {
+	return func(l *Lexer) {
+		l.optStartInCode = true
 	}
 }
 

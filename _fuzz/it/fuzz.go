@@ -57,7 +57,7 @@ func Fuzz(data []byte) (ret int) {
 		}
 	}()
 
-	if err := template.Render(r, &w, d, &s, nil, nil); err != nil {
+	if err := template.Render(r, &w, d, &s); err != nil {
 		if !lexer.IsParseError(err) && !parser.IsParseError(err) && !evaluator.IsEvaluationError(err) {
 			panic(err)
 		}

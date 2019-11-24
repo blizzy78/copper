@@ -44,7 +44,7 @@ func TestParserStartInLiteral(t *testing.T) {
 
 	for i, test := range tests {
 		t.Run(strconv.Itoa(i), func(t *testing.T) {
-			testParser(test.input, false, test.program, t)
+			testParser(test.input, test.program, t)
 		})
 	}
 }
@@ -146,7 +146,7 @@ func TestParseExpression(t *testing.T) {
 
 	for i, test := range tests {
 		t.Run(strconv.Itoa(i), func(t *testing.T) {
-			l := newLexerString(test.input, true, t)
+			l := newLexerString(test.input, t, lexer.WithStartInCodeMode())
 			prog := parse(l, t)
 			if prog.Statements[0].String() != test.expected {
 				t.Fatalf("wrong expression, expected=%s, got=%s", test.expected, prog.String())
@@ -172,7 +172,7 @@ func TestParseExpressionBool(t *testing.T) {
 
 	for i, test := range tests {
 		t.Run(strconv.Itoa(i), func(t *testing.T) {
-			l := newLexerString(test.input, true, t)
+			l := newLexerString(test.input, t, lexer.WithStartInCodeMode())
 			prog := parse(l, t)
 			b := prog.Statements[0].(*ast.ExpressionStatement).Expression.(*ast.BoolLiteral)
 			if b.Value != test.expected {
@@ -797,7 +797,7 @@ func TestParse(t *testing.T) {
 
 	for i, test := range tests {
 		t.Run(strconv.Itoa(i), func(t *testing.T) {
-			testParser(test.input, true, &ast.Program{Statements: test.expected}, t)
+			testParser(test.input, &ast.Program{Statements: test.expected}, t, lexer.WithStartInCodeMode())
 		})
 	}
 }
@@ -1022,10 +1022,10 @@ func testHashExpression(actual *ast.HashExpression, expected *ast.HashExpression
 	}
 }
 
-func testParser(input string, startInCode bool, expected *ast.Program, t *testing.T) {
+func testParser(input string, expected *ast.Program, t *testing.T, lexerOpts ...lexer.Opt) {
 	t.Helper()
 
-	l := newLexerString(input, startInCode, t)
+	l := newLexerString(input, t, lexerOpts...)
 	prog := parse(l, t)
 
 	if len(prog.Statements) != len(expected.Statements) {
@@ -1056,11 +1056,11 @@ func parse(l *lexer.Lexer, t *testing.T) (prog *ast.Program) {
 	return
 }
 
-func newLexerString(s string, startInCode bool, t *testing.T) (l *lexer.Lexer) {
+func newLexerString(s string, t *testing.T, opts ...lexer.Opt) (l *lexer.Lexer) {
 	t.Helper()
 
 	r := bytes.NewReader([]byte(s))
-	return lexer.New(r, startInCode)
+	return lexer.New(r, opts...)
 }
 
 func newIdent(n string) *ast.Ident {
