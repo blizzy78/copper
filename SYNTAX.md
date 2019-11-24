@@ -4,7 +4,7 @@ Template Language
 Copper uses a language similar to Go which should be fairly easy to use. The following
 constructs are available:
 
-Code blocks
+Code Blocks
 -----------
 
 Any code wrapped in `<% %>` code tags is considered Copper code that should be executed.
@@ -40,15 +40,22 @@ Comments
 Line comments start with `//` and go to the end of the line, or to the end of the code block
 using `%>`
 
+Block comments start with `/*` and end with `*/`, and they may span multiple code blocks.
+
 ### Example ###
 
 ```
 <%
 let x = 123  // this comment is an example
 safe(x)
+
+/* a multi-line
+code block here */
 %>
 
 <% // comment one %> This text will be rendered. <% // comment two %>
+
+<% /* %> This text will not be rendered. <% */ %>
 ```
 
 Statements vs Expressions
@@ -77,8 +84,8 @@ else
 end
 ```
 
-`let` - assignment
-------------------
+`let` - Variable Assignment
+---------------------------
 
 **`let IDENT = EXPR`**
 
@@ -102,7 +109,7 @@ let x = 1 + 2 * 3   // set x=7
 let y = if x > 5 "foo" else "bar" end
 ```
 
-`for` - loop
+`for` - Loop
 ------------
 
 **`for IDENT in RANGE_EXPR ... end`**
@@ -142,7 +149,7 @@ for i in fromTo(1, 10)
 end
 ```
 
-`capture` - capture all values as slice
+`capture` - Capture All Values as Slice
 ---------------------------------------
 
 **`capture ... end`**
@@ -182,12 +189,12 @@ foo({
 %>
 ```
 
-`{ }` - hash expression
------------------------
+`{ }` - Hash
+------------
 
 **`{ KEY_1_EXPR: EXPR_1, ... }`**
 
-A hash expression is used to create a map of values. Keys expressions must be of type `string`.
+A hash expression is used to create a map of values. Key expressions must be of type `string`.
 The internal type of the hash is `map[string]interface{}`
 
 ### Example ###
