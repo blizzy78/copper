@@ -85,6 +85,8 @@ func (l *Lexer) Tokens() (tCh <-chan *Token, done chan<- struct{}) {
 	done = doneCh
 
 	go func() {
+		defer close(tokenCh)
+
 	loop:
 		for {
 			t, err := l.next()

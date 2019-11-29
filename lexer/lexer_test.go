@@ -405,9 +405,7 @@ func testTokenString(input string, expectedTokens []expectedToken, t *testing.T,
 	l := newLexerString(input, t, opts...)
 	tCh, doneCh := l.Tokens()
 
-	defer func() {
-		close(doneCh)
-	}()
+	defer close(doneCh)
 
 	expectedIdx := 0
 

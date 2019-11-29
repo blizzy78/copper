@@ -65,9 +65,7 @@ func New(tCh <-chan *lexer.Token, doneCh chan<- struct{}) *Parser {
 // Parse reads the sequence of tokens and transforms it into an abstract syntax tree, a program.
 // The tree can be evaluated (executed) by an evaluator.Evaluator.
 func (p *Parser) Parse() (prog *ast.Program, err error) {
-	defer func() {
-		close(p.doneCh)
-	}()
+	defer close(p.doneCh)
 
 	if err = p.initialize(); err != nil {
 		return

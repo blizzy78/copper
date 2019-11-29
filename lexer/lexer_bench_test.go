@@ -15,9 +15,7 @@ func BenchmarkX(b *testing.B) {
 		l := newLexerString(s, b)
 		tCh, doneCh := l.Tokens()
 
-		defer func() {
-			close(doneCh)
-		}()
+		defer close(doneCh)
 
 		b.StartTimer()
 
