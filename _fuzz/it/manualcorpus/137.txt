@@ -1,0 +1,44 @@
+<%
+let x = 123  // this comment is an example
+safe(x)
+
+/* a multi-line
+code block here */
+%>
+
+<% // comment one %> This text will be rendered. <% // comment two %>
+
+<% /* %> This text will not be rendered. <% */ %>
+
+<%
+let h = {
+  "foo": "bar",
+  "value": 42   // note no extra comma after the last value!
+}
+
+let key = "foo"
+let h = {
+  // use expression as key instead of literal string
+  key: "bar"
+}
+%>
+
+<%
+// get article from somewhere
+let article = ...
+
+// call a function, passing it a hash containing the entries "headline" and "body"
+foo({
+  // pass the article's headline as the "headline" entry
+  "headline": article.headline,
+
+  // pass the "body" entry containing a mix of literal output and code block
+  // because those are multiple expressions, "capture" must be used to combine them
+  // into a single slice
+  "body": capture %>
+    <p>
+      <% html(article.text) %>
+    </p>
+  <% end
+})
+%>
