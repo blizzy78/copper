@@ -191,6 +191,10 @@ func (p *Parser) readNextToken() (err error) {
 		return p.nextToken.Err
 	}
 
+	if p.nextToken.Type == lexer.Illegal {
+		return newParseErrorf(p.nextToken.Line, p.nextToken.Col, "illegal token found: %s", p.nextToken)
+	}
+
 	return
 }
 
