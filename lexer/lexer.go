@@ -26,12 +26,6 @@ type stateFunc func(tCh chan<- *Token) stateFunc
 
 var (
 	keywords = map[string]TokenType{
-		// TODO
-		// "func":     Function,
-		// "return":   Return,
-		"func":   Illegal,
-		"return": Illegal,
-
 		"let":      Let,
 		"if":       If,
 		"else":     Else,
