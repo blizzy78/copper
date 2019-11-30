@@ -10,140 +10,191 @@ type Token struct {
 	Err     error
 }
 
-type TokenType string
+type TokenType int
 
 const (
-	// Illegal is the token type used for unknown tokens.
-	Illegal = "ILLEGAL"
-
 	// EOF is the token type returned when a lexer has reached the end of its input.
-	EOF = "EOF"
+	EOF = iota
+
+	// Illegal is the token type used for unknown tokens.
+	Illegal
 
 	// True is the token type used for a literal true bool value.
-	True = "TRUE"
+	True
 
 	// True is the token type used for a literal false bool value.
-	False = "FALSE"
+	False
 
 	// Nil is the token type used for a literal nil value.
-	Nil = "NIL"
+	Nil
 
 	// Ident is the token type used for an identifier.
-	Ident = "IDENT"
+	Ident
 
 	// Int is the token type used for a signed integer value.
-	Int = "INT"
+	Int
 
 	// String is the token type used for a literal string value.
-	String = "STRING"
+	String
 
 	// Assign is the token type used for the assignment character '='.
 	// If the character is part of the sequences "==", "!=", "<=", or ">=",
 	// the token types Equal, NotEqual, LessOrEqual, or GreaterOrEqual are used for
 	// the whole sequence instead, respectively.
-	Assign = "="
+	Assign
 
 	// Bang is the token type used for the bang character '!'.
-	Bang = "!"
+	Bang
 
 	// Plus is the token type used for the plus character '+'.
-	Plus = "+"
+	Plus
 
 	// Minus is the token type used for the minus character '-'.
-	Minus = "-"
+	Minus
 
 	// Asterisk is the token type used for the asterisk character '*'.
-	Asterisk = "*"
+	Asterisk
 
 	// Slash is the token type used for the slash character '/'.
-	Slash = "/"
+	Slash
 
 	// Mod is the token type used for the modulo character '%'.
-	Mod = "%"
+	Mod
 
 	// Equal is the token type used for the equals comparison character sequence "==".
-	Equal = "=="
+	Equal
 
 	// NotEqual is the token type used for the not equals comparison character sequence "!=".
-	NotEqual = "!="
+	NotEqual
 
 	// LessThan is the token type used for the less than character '<'. If the character is followed by
 	// the equals character '=', the token type LessOrEqual is used for the whole sequence instead.
-	LessThan = "<"
+	LessThan
 
 	// GreaterThan is the token type used for the greater than character '>'. If the character is followed by
 	// the equals character '=', the token type GreaterOrEqual is used for the whole sequence instead.
-	GreaterThan = ">"
+	GreaterThan
 
 	// LessOrEqual is the token type used for the less or equals character sequence "<=".
-	LessOrEqual = "<="
+	LessOrEqual
 
 	// GreaterOrEqual is the token type used for the greater or equals character sequence ">=".
-	GreaterOrEqual = ">="
+	GreaterOrEqual
 
 	// Dot is the token type used for the dot character '.'.
-	Dot = "."
+	Dot
 
 	// Comma is the token type used for the modulo character '%'.
-	Comma = ","
+	Comma
 
 	// Colon is the token type used for the colon character ':'.
-	Colon = ":"
+	Colon
 
 	// LeftParen is the token type used for the left parenthesis character '('.
-	LeftParen = "("
+	LeftParen
 
 	// RightParen is the token type used for the right parenthesis character ')'.
-	RightParen = ")"
+	RightParen
 
 	// LeftBracket is the token type used for the left square bracket character '['.
-	LeftBracket = "["
+	LeftBracket
 
 	// RightBracket is the token type used for the right square bracket character ']'.
-	RightBracket = "]"
+	RightBracket
 
 	// LeftBrace is the token type used for the left curly brace character '{'.
-	LeftBrace = "{"
+	LeftBrace
 
 	// RightBrace is the token type used for the right curly brace character '}'.
-	RightBrace = "}"
+	RightBrace
 
 	// Let is the token type used for the let keyword.
-	Let = "LET"
+	Let
 
 	// If is the token type used for the if keyword.
-	If = "IF"
+	If
 
 	// Else is the token type used for the else keyword.
-	Else = "ELSE"
+	Else
 
 	// ElseIf is the token type used for the elseif keyword.
-	ElseIf = "ELSE_IF"
+	ElseIf
 
 	// End is the token type used for the end keyword.
-	End = "END"
+	End
 
 	// For is the token type used for the for keyword.
-	For = "FOR"
+	For
 
 	// Break is the token type used for the break keyword.
-	Break = "BREAK"
+	Break
 
 	// Continue is the token type used for the continue keyword.
-	Continue = "CONTINUE"
+	Continue
 
 	// In is the token type used for the in keyword.
-	In = "IN"
+	In
 
 	// Capture is the token type used for the capture keyword.
-	Capture = "CAPTURE"
+	Capture
 
 	// Literal is the token type used for literal strings in the template, outside of code blocks.
-	Literal = "LITERAL"
+	Literal
 
-	Error = "ERROR"
+	Error
 )
 
-func (t *Token) String() string {
+var (
+	tokenTypeNames = map[TokenType]string{
+		EOF:            "EOF",
+		Illegal:        "ILLEGAL",
+		True:           "TRUE",
+		False:          "FALSE",
+		Nil:            "NIL",
+		Ident:          "IDENT",
+		Int:            "INT",
+		String:         "STRING",
+		Assign:         "ASSIGN",
+		Bang:           "BANG",
+		Plus:           "PLUS",
+		Minus:          "MINUS",
+		Asterisk:       "ASTERISK",
+		Slash:          "SLASH",
+		Mod:            "MOD",
+		Equal:          "EQUAL",
+		NotEqual:       "NOT_EQUAL",
+		LessThan:       "LESS_THAN",
+		GreaterThan:    "GREATER_THAN",
+		LessOrEqual:    "LESS_OR_EQUAL",
+		GreaterOrEqual: "GREATER_OR_EQUAL",
+		Dot:            "DOT",
+		Comma:          "COMMA",
+		Colon:          "COLON",
+		LeftParen:      "LEFT_PAREN",
+		RightParen:     "RIGHT_PAREN",
+		LeftBracket:    "LEFT_BRACKET",
+		RightBracket:   "RIGHT_BRACKET",
+		LeftBrace:      "LEFT_BRACE",
+		RightBrace:     "RIGHT_BRACE",
+		Let:            "LET",
+		If:             "IF",
+		Else:           "ELSE",
+		ElseIf:         "ELSE_IF",
+		End:            "END",
+		For:            "FOR",
+		Break:          "BREAK",
+		Continue:       "CONTINUE",
+		In:             "IN",
+		Capture:        "CAPTURE",
+		Literal:        "LITERAL",
+		Error:          "ERROR",
+	}
+)
+
+func (t Token) String() string {
 	return fmt.Sprintf("'%s' (%s)", t.Literal, t.Type)
+}
+
+func (t TokenType) String() string {
+	return tokenTypeNames[t]
 }

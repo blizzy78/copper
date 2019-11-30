@@ -32,7 +32,7 @@ const (
 
 var (
 	startToken = lexer.Token{
-		Type: "START",
+		Type: -1,
 	}
 
 	precedences = map[lexer.TokenType]int{
