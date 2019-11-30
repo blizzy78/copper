@@ -4,7 +4,6 @@ import (
 	"bufio"
 	"io"
 	"strings"
-	"sync"
 )
 
 // Lexer parses a series of statements or expressions, a template, from a reader and returns them
@@ -14,9 +13,6 @@ type Lexer struct {
 	optStartInCode bool
 	line           int
 	col            int
-	startedInCode  bool
-	inCode         bool
-	initOnce       sync.Once
 	currChar       rune
 	nextChar       rune
 	currEOF        bool
@@ -25,6 +21,8 @@ type Lexer struct {
 
 // Opt is the type of a function that configures an option of l.
 type Opt func(l *Lexer)
+
+type stateFunc func(tCh chan<- *Token) stateFunc
 
 var (
 	keywords = map[string]TokenType{
@@ -60,9 +58,6 @@ func New(r io.Reader, opts ...Opt) *Lexer {
 		opt(l)
 	}
 
-	l.startedInCode = l.optStartInCode
-	l.inCode = l.optStartInCode
-
 	return l
 }
 
@@ -84,101 +79,407 @@ func (l *Lexer) Tokens() (tCh <-chan *Token, done chan<- struct{}) {
 	doneCh := make(chan struct{})
 	done = doneCh
 
-	go func() {
+	startState := l.parseLiteral
+	if l.optStartInCode {
+		startState = l.parseCode
+	}
+
+	if err := l.initialize(); err != nil {
+		startState = l.parseError(err, l.line, l.col)
+	}
+
+	go func(state stateFunc) {
 		defer close(tokenCh)
 
-	loop:
-		for {
-			t, err := l.next()
-			if err != nil {
-				t.Err = err
+		for state != nil {
+			if l.currEOF {
+				state = l.parseEOF
 			}
 
-			select {
-			case <-doneCh:
-				break loop
-			case tokenCh <- &t:
-				// okay
-			}
-
-			if t.Type == EOF || t.Err != nil {
-				break
-			}
+			state = state(tokenCh)
 		}
-	}()
+
+		// loop:
+		// 	for {
+		// 		t, err := l.next()
+		// 		if err != nil {
+		// 			t.Err = err
+		// 		}
+
+		// 		select {
+		// 		case <-doneCh:
+		// 			break loop
+		// 		case tokenCh <- &t:
+		// 			// okay
+		// 		}
+
+		// 		if t.Type == EOF || t.Err != nil {
+		// 			break
+		// 		}
+		// 	}
+	}(startState)
 
 	return
 }
 
-func (l *Lexer) next() (t Token, err error) {
-	l.initOnce.Do(func() {
-		err = l.initialize()
-	})
+func (l *Lexer) parseLiteral(tCh chan<- *Token) stateFunc {
+	buf := strings.Builder{}
 
-	if err != nil {
-		return
+	defer emitTokenBuffer(tCh, Literal, &buf, l.line, l.col)
+
+	for {
+		if l.currEOF {
+			return l.parseEOF
+		}
+
+		if l.isAtCodeStart() {
+			return l.parseCodeStart
+		}
+
+		if _, err := buf.WriteRune(l.currChar); err != nil {
+			return l.parseError(err, l.line, l.col)
+		}
+
+		if err := l.readNextChar(); err != nil {
+			return l.parseError(err, l.line, l.col)
+		}
+	}
+}
+
+func (l *Lexer) parseEOF(tCh chan<- *Token) stateFunc {
+	tCh <- newToken(EOF, "", l.line, l.col)
+	return nil
+}
+
+func (l *Lexer) parseCodeStart(tCh chan<- *Token) stateFunc {
+	if err := l.readNextChar(); err != nil {
+		return l.parseError(err, l.line, l.col)
+	}
+	if err := l.readNextChar(); err != nil {
+		return l.parseError(err, l.line, l.col)
 	}
 
-	if l.inCode {
-		if err = l.skipWhitespace(); err != nil {
-			return
+	return l.parseCode
+}
+
+func (l *Lexer) parseCodeEnd(tCh chan<- *Token) stateFunc {
+	if err := l.readNextChar(); err != nil {
+		return l.parseError(err, l.line, l.col)
+	}
+	if err := l.readNextChar(); err != nil {
+		return l.parseError(err, l.line, l.col)
+	}
+
+	return l.parseLiteral
+}
+
+func (l *Lexer) parseCode(tCh chan<- *Token) stateFunc {
+	if err := l.skipWhitespace(); err != nil {
+		return l.parseError(err, l.line, l.col)
+	}
+
+	if isIntChar(l.currChar) {
+		return l.parseInt
+	}
+
+	if isIdentFirstChar(l.currChar) {
+		return l.parseIdent
+	}
+
+	switch l.currChar {
+	case '"':
+		fallthrough
+	case '\'':
+		return l.parseString
+	case '=':
+		return l.parseAssignOrEqual
+	case '+':
+		return l.parseToken(Plus, "+")
+	case '-':
+		return l.parseToken(Minus, "-")
+	case '*':
+		return l.parseToken(Asterisk, "*")
+	case '/':
+		return l.parseSlashOrComment
+	case '!':
+		return l.parseBangOrNotEqual
+	case '%':
+		return l.parseModOrCodeEnd
+	case '(':
+		return l.parseToken(LeftParen, "(")
+	case ')':
+		return l.parseToken(RightParen, ")")
+	case '[':
+		return l.parseToken(LeftBracket, "[")
+	case ']':
+		return l.parseToken(RightBracket, "]")
+	case '{':
+		return l.parseToken(LeftBrace, "{")
+	case '}':
+		return l.parseToken(RightBrace, "}")
+	case '.':
+		return l.parseToken(Dot, ".")
+	case ',':
+		return l.parseToken(Comma, ",")
+	case ':':
+		return l.parseToken(Colon, ":")
+	case '<':
+		return l.parseLessThanOrLessEqual
+	case '>':
+		return l.parseGreaterThanOrGreaterEqual
+	}
+
+	return l.parseIllegal
+}
+
+func (l *Lexer) parseInt(tCh chan<- *Token) stateFunc {
+	buf := strings.Builder{}
+
+	defer emitTokenBuffer(tCh, Int, &buf, l.line, l.col)
+
+	for {
+		if l.currEOF {
+			return l.parseEOF
+		}
+
+		if !isIntChar(l.currChar) {
+			return l.parseCode
+		}
+
+		if _, err := buf.WriteRune(l.currChar); err != nil {
+			return l.parseError(err, l.line, l.col)
+		}
+
+		if err := l.readNextChar(); err != nil {
+			return l.parseError(err, l.line, l.col)
+		}
+	}
+}
+
+func (l *Lexer) parseIdent(tCh chan<- *Token) stateFunc {
+	b := strings.Builder{}
+
+	defer func(line int, col int) {
+		literal := b.String()
+
+		var t TokenType
+		var ok bool
+		if t, ok = keywords[literal]; !ok {
+			t = Ident
+		}
+
+		tCh <- newToken(t, literal, line, col)
+	}(l.line, l.col)
+
+	for {
+		if l.currEOF {
+			return l.parseEOF
+		}
+
+		if !isIdentChar(l.currChar) {
+			return l.parseCode
+		}
+
+		if _, err := b.WriteRune(l.currChar); err != nil {
+			return l.parseError(err, l.line, l.col)
+		}
+
+		if err := l.readNextChar(); err != nil {
+			return l.parseError(err, l.line, l.col)
+		}
+	}
+}
+
+func (l *Lexer) parseString(tCh chan<- *Token) stateFunc {
+	startChar := l.currChar
+
+	buf := strings.Builder{}
+
+	defer emitTokenBuffer(tCh, String, &buf, l.line, l.col)
+
+	if err := l.readNextChar(); err != nil {
+		return l.parseError(err, l.line, l.col)
+	}
+
+	prevBackslash := false
+
+	for {
+		if l.currEOF {
+			return l.parseEOF
+		}
+
+		if l.currChar == startChar && !prevBackslash {
+			break
+		}
+
+		if _, err := buf.WriteRune(l.currChar); err != nil {
+			return l.parseError(err, l.line, l.col)
+		}
+
+		prevBackslash = l.currChar == '\\'
+
+		if err := l.readNextChar(); err != nil {
+			return l.parseError(err, l.line, l.col)
 		}
 	}
 
-	if l.currEOF {
-		// if the lexer started in literal mode, it is illegal to end inside code mode
-		if !l.startedInCode && l.inCode {
-			err = newParseErrorf(l.line, l.col, "end of code mode block expected")
-			return
-		}
-
-		t = newToken(EOF, "", l.line, l.col)
-
-		return
+	if err := l.readNextChar(); err != nil {
+		return l.parseError(err, l.line, l.col)
 	}
 
-	if l.inCode {
-		if isIntChar(l.currChar) {
-			t, err = l.readInt()
-		} else if isIdentFirstChar(l.currChar) {
-			if t, err = l.readIdent(); err == nil {
-				t.Type = lookupIdentTokenType(t.Literal)
+	s := buf.String()
+	s = strings.ReplaceAll(s, `\r`, "\r")
+	s = strings.ReplaceAll(s, `\n`, "\n")
+	s = strings.ReplaceAll(s, `\t`, "\t")
+	s = strings.ReplaceAll(s, `\"`, `"`)
+	s = strings.ReplaceAll(s, `\'`, "'")
+	s = strings.ReplaceAll(s, `\\`, "\\")
+	buf.Reset()
+	buf.WriteString(s)
+
+	return l.parseCode
+}
+
+func (l *Lexer) parseLineComment(tCh chan<- *Token) stateFunc {
+	if err := l.readNextChar(); err != nil {
+		return l.parseError(err, l.line, l.col)
+	}
+	if err := l.readNextChar(); err != nil {
+		return l.parseError(err, l.line, l.col)
+	}
+
+	for {
+		if l.currEOF {
+			return l.parseEOF
+		}
+
+		if l.currChar == '\n' {
+			return l.parseCode
+		}
+
+		if !l.optStartInCode && l.isAtCodeEnd() {
+			return l.parseCodeEnd
+		}
+
+		if err := l.readNextChar(); err != nil {
+			return l.parseError(err, l.line, l.col)
+		}
+	}
+}
+
+func (l *Lexer) parseBlockComment(tCh chan<- *Token) stateFunc {
+	if err := l.readNextChar(); err != nil {
+		return l.parseError(err, l.line, l.col)
+	}
+	if err := l.readNextChar(); err != nil {
+		return l.parseError(err, l.line, l.col)
+	}
+
+	for {
+		if l.currEOF {
+			return l.parseEOF
+		}
+
+		if l.currChar == '*' && l.nextCharIs('/') {
+			if err := l.readNextChar(); err != nil {
+				return l.parseError(err, l.line, l.col)
 			}
-		} else if l.currChar == '"' || l.currChar == '\'' {
-			t, err = l.readString()
-		} else if l.currChar == '/' && l.nextCharIs('/') {
-			t, err = l.readLineComment()
-		} else if l.currChar == '/' && l.nextCharIs('*') {
-			t, err = l.readBlockComment()
-		} else {
-			t, err = l.readToken()
+			if err := l.readNextChar(); err != nil {
+				return l.parseError(err, l.line, l.col)
+			}
+
+			return l.parseCode
 		}
-	} else {
-		t, err = l.readLiteralOrCodeStart()
+
+		if err := l.readNextChar(); err != nil {
+			return l.parseError(err, l.line, l.col)
+		}
+	}
+}
+
+func (l *Lexer) parseAssignOrEqual(tCh chan<- *Token) stateFunc {
+	if l.nextCharIs('=') {
+		return l.parseToken(Equal, "==")
 	}
 
-	if err != nil {
-		return
+	return l.parseToken(Assign, "=")
+}
+
+func (l *Lexer) parseBangOrNotEqual(tCh chan<- *Token) stateFunc {
+	if l.nextCharIs('=') {
+		return l.parseToken(NotEqual, "!=")
 	}
 
-	// if the lexer started in code mode, it is illegal to try to break out into literal mode
-	if l.startedInCode && (t.Type == codeStart || t.Type == codeEnd) {
-		t = newToken(Illegal, t.Literal, l.line, l.col)
-		return
+	return l.parseToken(Bang, "!")
+}
+
+func (l *Lexer) parseModOrCodeEnd(tCh chan<- *Token) stateFunc {
+	if l.nextCharIs('>') {
+		return l.parseCodeEnd
 	}
 
-	if l.inCode && t.Type == codeEnd {
-		l.inCode = false
-	} else if !l.inCode && t.Type == codeStart {
-		l.inCode = true
+	return l.parseToken(Mod, "%")
+}
+
+func (l *Lexer) parseLessThanOrLessEqual(tCh chan<- *Token) stateFunc {
+	if l.nextCharIs('=') {
+		return l.parseToken(LessOrEqual, "<=")
 	}
 
-	// skip internal tokens
-	if t.Type == codeStart || t.Type == codeEnd || t.Type == lineComment || t.Type == blockComment {
-		t, err = l.next()
+	return l.parseToken(LessThan, "<")
+}
+
+func (l *Lexer) parseGreaterThanOrGreaterEqual(tCh chan<- *Token) stateFunc {
+	if l.nextCharIs('=') {
+		return l.parseToken(GreaterOrEqual, ">=")
 	}
 
-	return
+	return l.parseToken(GreaterThan, ">")
+}
+
+func (l *Lexer) parseSlashOrComment(tCh chan<- *Token) stateFunc {
+	if l.nextCharIs('/') {
+		return l.parseLineComment
+	}
+
+	if l.nextCharIs('*') {
+		return l.parseBlockComment
+	}
+
+	return l.parseToken(Slash, "/")
+}
+
+func (l *Lexer) parseToken(t TokenType, literal string) stateFunc {
+	return func(tCh chan<- *Token) stateFunc {
+		tCh <- newToken(t, literal, l.line, l.col)
+
+		for range literal {
+			if err := l.readNextChar(); err != nil {
+				return l.parseError(err, l.line, l.col)
+			}
+		}
+
+		return l.parseCode
+	}
+}
+
+func (l *Lexer) parseIllegal(tCh chan<- *Token) stateFunc {
+	buf := strings.Builder{}
+
+	defer emitTokenBuffer(tCh, Illegal, &buf, l.line, l.col)
+
+	if _, err := buf.WriteRune(l.currChar); err != nil {
+		return l.parseError(err, l.line, l.col)
+	}
+
+	return nil
+}
+
+func (l *Lexer) parseError(err error, line int, col int) stateFunc {
+	return func(tCh chan<- *Token) stateFunc {
+		tCh <- newErrorToken(err, line, col)
+		return nil
+	}
 }
 
 func (l *Lexer) initialize() (err error) {
@@ -202,67 +503,6 @@ func (l *Lexer) skipWhitespace() (err error) {
 	return
 }
 
-func (l *Lexer) readInt() (t Token, err error) {
-	b := strings.Builder{}
-	line := l.line
-	col := l.col
-
-	for !l.currEOF && isIntChar(l.currChar) {
-		if _, err = b.WriteRune(l.currChar); err != nil {
-			break
-		}
-
-		if err = l.readNextChar(); err != nil {
-			break
-		}
-	}
-
-	if err != nil {
-		return
-	}
-
-	t = newToken(Int, b.String(), line, col)
-
-	return
-}
-
-func (l *Lexer) readLiteralOrCodeStart() (t Token, err error) {
-	b := strings.Builder{}
-	line := l.line
-	col := l.col
-
-	if !l.currEOF && l.isAtCodeStart() {
-		if err = l.readNextChar(); err != nil {
-			return
-		}
-		if err = l.readNextChar(); err != nil {
-			return
-		}
-
-		t = newToken(codeStart, "<%", line, col)
-
-		return
-	}
-
-	for !l.currEOF && !l.isAtCodeStart() {
-		if _, err = b.WriteRune(l.currChar); err != nil {
-			break
-		}
-
-		if err = l.readNextChar(); err != nil {
-			break
-		}
-	}
-
-	if err != nil {
-		return
-	}
-
-	t = newToken(Literal, b.String(), line, col)
-
-	return
-}
-
 func (l *Lexer) isAtCodeStart() bool {
 	return l.currChar == '<' && l.nextCharIs('%')
 }
@@ -273,247 +513,6 @@ func (l *Lexer) isAtCodeEnd() bool {
 
 func (l *Lexer) isAtBlockCommentEnd() bool {
 	return l.currChar == '*' && l.nextCharIs('/')
-}
-
-func (l *Lexer) readIdent() (t Token, err error) {
-	b := strings.Builder{}
-	line := l.line
-	col := l.col
-
-	for !l.currEOF && isIdentChar(l.currChar) {
-		if _, err = b.WriteRune(l.currChar); err != nil {
-			break
-		}
-
-		if err = l.readNextChar(); err != nil {
-			break
-		}
-	}
-
-	if err != nil {
-		return
-	}
-
-	t = newToken(Ident, b.String(), line, col)
-
-	return
-}
-
-func (l *Lexer) readString() (t Token, err error) {
-	startChar := l.currChar
-	line := l.line
-	col := l.col
-
-	if err = l.readNextChar(); err != nil {
-		return
-	}
-
-	buf := strings.Builder{}
-
-	prevBackslash := false
-
-	for !l.currEOF && (prevBackslash || l.currChar != startChar) {
-		if _, err = buf.WriteRune(l.currChar); err != nil {
-			break
-		}
-
-		prevBackslash = l.currChar == '\\'
-
-		if err = l.readNextChar(); err != nil {
-			return
-		}
-	}
-
-	if err != nil {
-		return
-	}
-
-	if l.currEOF {
-		err = newParseErrorf(line, col, "end of string not found")
-		return
-	}
-
-	if err = l.readNextChar(); err != nil {
-		return
-	}
-
-	s := buf.String()
-	s = strings.ReplaceAll(s, `\r`, "\r")
-	s = strings.ReplaceAll(s, `\n`, "\n")
-	s = strings.ReplaceAll(s, `\t`, "\t")
-	s = strings.ReplaceAll(s, `\"`, `"`)
-	s = strings.ReplaceAll(s, `\'`, "'")
-	s = strings.ReplaceAll(s, `\\`, "\\")
-
-	t = newToken(String, s, line, col)
-
-	return
-}
-
-func (l *Lexer) readToken() (t Token, err error) {
-	line := l.line
-	col := l.col
-
-	switch l.currChar {
-	case '=':
-		if l.nextCharIs('=') {
-			t = newToken(Equal, "==", line, col)
-			err = l.readNextChar()
-		} else {
-			t = newToken(Assign, "=", line, col)
-		}
-	case '!':
-		if l.nextCharIs('=') {
-			t = newToken(NotEqual, "!=", line, col)
-			err = l.readNextChar()
-		} else {
-			t = newToken(Bang, "!", line, col)
-		}
-	case '+':
-		t = newToken(Plus, "+", line, col)
-	case '-':
-		t = newToken(Minus, "-", line, col)
-	case '*':
-		t = newToken(Asterisk, "*", line, col)
-	case '/':
-		t = newToken(Slash, "/", line, col)
-	case '%':
-		if l.nextCharIs('>') {
-			t = newToken(codeEnd, "%>", line, col)
-			err = l.readNextChar()
-		} else {
-			t = newToken(Mod, "%", line, col)
-		}
-	case '(':
-		t = newToken(LeftParen, "(", line, col)
-	case ')':
-		t = newToken(RightParen, ")", line, col)
-	case ',':
-		t = newToken(Comma, ",", line, col)
-	case '.':
-		t = newToken(Dot, ".", line, col)
-	case ':':
-		t = newToken(Colon, ":", line, col)
-	case '[':
-		t = newToken(LeftBracket, "[", line, col)
-	case ']':
-		t = newToken(RightBracket, "]", line, col)
-	case '{':
-		t = newToken(LeftBrace, "{", line, col)
-	case '}':
-		t = newToken(RightBrace, "}", line, col)
-	case '<':
-		if l.nextCharIs('=') {
-			t = newToken(LessOrEqual, "<=", line, col)
-			err = l.readNextChar()
-		} else {
-			t = newToken(LessThan, "<", line, col)
-		}
-	case '>':
-		if l.nextCharIs('=') {
-			t = newToken(GreaterOrEqual, ">=", line, col)
-			err = l.readNextChar()
-		} else {
-			t = newToken(GreaterThan, ">", line, col)
-		}
-	default:
-		t = newToken(Illegal, string(l.currChar), line, col)
-	}
-
-	if err != nil {
-		return
-	}
-
-	err = l.readNextChar()
-
-	return
-}
-
-func (l *Lexer) readBlockComment() (t Token, err error) {
-	line := l.line
-	col := l.col
-
-	if err = l.readNextChar(); err != nil {
-		return
-	}
-	if err = l.readNextChar(); err != nil {
-		return
-	}
-
-	buf := strings.Builder{}
-
-	endOk := false
-	for !l.currEOF {
-		if l.isAtBlockCommentEnd() {
-			endOk = true
-			break
-		}
-
-		if _, err = buf.WriteRune(l.currChar); err != nil {
-			break
-		}
-
-		if err = l.readNextChar(); err != nil {
-			break
-		}
-	}
-
-	if err != nil {
-		return
-	}
-
-	if !endOk {
-		err = newParseErrorf(line, col, "end of block comment not found")
-		return
-	}
-
-	if err = l.readNextChar(); err != nil {
-		return
-	}
-	if err = l.readNextChar(); err != nil {
-		return
-	}
-
-	t = newToken(blockComment, buf.String(), line, col)
-
-	return
-}
-
-func (l *Lexer) readLineComment() (t Token, err error) {
-	line := l.line
-	col := l.col
-
-	if err = l.readNextChar(); err != nil {
-		return
-	}
-	if err = l.readNextChar(); err != nil {
-		return
-	}
-
-	buf := strings.Builder{}
-
-	for !l.currEOF && l.currChar != '\n' {
-		// if the lexer started in literal mode, stop line comments at end of code blocks
-		if !l.startedInCode && l.isAtCodeEnd() {
-			break
-		}
-
-		if _, err = buf.WriteRune(l.currChar); err != nil {
-			break
-		}
-
-		if err = l.readNextChar(); err != nil {
-			break
-		}
-	}
-
-	if err != nil {
-		return
-	}
-
-	t = newToken(lineComment, buf.String(), line, col)
-
-	return
 }
 
 func (l *Lexer) readNextChar() (err error) {
@@ -558,12 +557,25 @@ func (l *Lexer) nextCharIs(c rune) bool {
 	return !l.nextEOF && (l.nextChar == c)
 }
 
-func newToken(t TokenType, literal string, line int, col int) Token {
-	return Token{
+func emitTokenBuffer(tCh chan<- *Token, t TokenType, buf *strings.Builder, line int, col int) {
+	tCh <- newToken(t, buf.String(), line, col)
+}
+
+func newToken(t TokenType, literal string, line int, col int) *Token {
+	return &Token{
 		Type:    t,
 		Literal: literal,
 		Line:    line,
 		Col:     col,
+	}
+}
+
+func newErrorToken(err error, line int, col int) *Token {
+	return &Token{
+		Type: Error,
+		Line: line,
+		Col:  col,
+		Err:  newParseError(err, line, col),
 	}
 }
 
@@ -581,12 +593,4 @@ func isIdentFirstChar(c rune) bool {
 
 func isIdentChar(c rune) bool {
 	return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || c == '_' || isIntChar(c)
-}
-
-func lookupIdentTokenType(ident string) (t TokenType) {
-	var ok bool
-	if t, ok = keywords[ident]; !ok {
-		t = Ident
-	}
-	return
 }

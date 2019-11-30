@@ -19,16 +19,6 @@ func newParseError(e error, line int, col int) *parseError {
 	}
 }
 
-func newParseErrorf(line int, col int, s string, args ...interface{}) *parseError {
-	var e error
-	if len(args) > 0 {
-		e = fmt.Errorf(s, args...)
-	} else {
-		e = errors.New(s)
-	}
-	return newParseError(e, line, col)
-}
-
 func IsParseError(e error) bool {
 	var pe *parseError
 	return errors.As(e, &pe)

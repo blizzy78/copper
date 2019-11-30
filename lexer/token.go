@@ -141,10 +141,7 @@ const (
 	// Literal is the token type used for literal strings in the template, outside of code blocks.
 	Literal = "LITERAL"
 
-	codeStart    = "<%"
-	codeEnd      = "%>"
-	lineComment  = "//"
-	blockComment = "/*"
+	Error = "ERROR"
 )
 
 func (t *Token) String() string {

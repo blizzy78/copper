@@ -23,6 +23,13 @@ func TestLexer(t *testing.T) {
 			},
 		},
 		{
+			`""`,
+			[]expectedToken{
+				{String, ""},
+				{EOF, ""},
+			},
+		},
+		{
 			`"x"`,
 			[]expectedToken{
 				{String, "x"},
@@ -40,6 +47,34 @@ func TestLexer(t *testing.T) {
 			`"x\"y"`,
 			[]expectedToken{
 				{String, `x"y`},
+				{EOF, ""},
+			},
+		},
+		{
+			`''`,
+			[]expectedToken{
+				{String, ""},
+				{EOF, ""},
+			},
+		},
+		{
+			`'x'`,
+			[]expectedToken{
+				{String, "x"},
+				{EOF, ""},
+			},
+		},
+		{
+			`'x\ny'`,
+			[]expectedToken{
+				{String, "x\ny"},
+				{EOF, ""},
+			},
+		},
+		{
+			`'x\'y'`,
+			[]expectedToken{
+				{String, `x'y`},
 				{EOF, ""},
 			},
 		},
@@ -107,9 +142,6 @@ func TestLexer(t *testing.T) {
 				{Plus, "+"},
 				{LeftParen, "("},
 				{Illegal, "@"},
-				{RightParen, ")"},
-				{Comma, ","},
-				{EOF, ""},
 			},
 		},
 		{
@@ -316,7 +348,7 @@ gh  `},
 			},
 		},
 		{
-			`// comment
+			`// comment %>
 			"foo"
 			// comment 2
 			"bar" // "comment 3"
@@ -346,6 +378,13 @@ func TestLexerStartInLiteral(t *testing.T) {
 		{
 			``,
 			[]expectedToken{
+				{EOF, ""},
+			},
+		},
+		{
+			`foo`,
+			[]expectedToken{
+				{Literal, "foo"},
 				{EOF, ""},
 			},
 		},
@@ -408,9 +447,12 @@ func testTokenString(input string, expectedTokens []expectedToken, t *testing.T,
 	defer close(doneCh)
 
 	expectedIdx := 0
+	numTokens := 0
 
 loop:
 	for tok := range tCh {
+		numTokens++
+
 		if tok.Err != nil {
 			t.Fatalf("error reading next token: %v", tok.Err)
 		}
@@ -425,6 +467,10 @@ loop:
 		if tok.Type == EOF {
 			break loop
 		}
+	}
+
+	if numTokens != len(expectedTokens) {
+		t.Fatalf("wrong number of tokens, expected=%d, got=%d", len(expectedTokens), numTokens)
 	}
 }
 
