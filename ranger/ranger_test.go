@@ -14,6 +14,14 @@ func TestNewInt(t *testing.T) {
 	for i := 1; i < 6; i++ {
 		is.True(r.Next()) // have value
 		is.Equal(r.Value().(int), i)
+
+		s := r.Status()
+		is.Equal(s.Index, i-1)
+		is.Equal(s.First, i == 1)
+		is.Equal(s.Last, i == 5)
+		is.Equal(s.Even, s.Index%2 == 0)
+		is.Equal(s.Odd, !s.Even)
+		is.Equal(s.HasMore, i < 5)
 	}
 
 	is.True(!r.Next()) // no more values
@@ -27,6 +35,14 @@ func TestNewFromTo(t *testing.T) {
 	for i := 1; i <= 5; i++ {
 		is.True(r.Next()) // have value
 		is.Equal(r.Value().(int), i)
+
+		s := r.Status()
+		is.Equal(s.Index, i-1)
+		is.Equal(s.First, i == 1)
+		is.Equal(s.Last, i == 5)
+		is.Equal(s.Even, s.Index%2 == 0)
+		is.Equal(s.Odd, !s.Even)
+		is.Equal(s.HasMore, i < 5)
 	}
 
 	is.True(!r.Next()) // no more values
@@ -40,6 +56,14 @@ func TestNew(t *testing.T) {
 	for i := 1; i <= 5; i++ {
 		is.True(r.Next()) // have value
 		is.Equal(r.Value().(int), i)
+
+		s := r.Status()
+		is.Equal(s.Index, i-1)
+		is.Equal(s.First, i == 1)
+		is.Equal(s.Last, i == 5)
+		is.Equal(s.Even, s.Index%2 == 0)
+		is.Equal(s.Odd, !s.Even)
+		is.Equal(s.HasMore, i < 5)
 	}
 
 	is.True(!r.Next()) // no more values

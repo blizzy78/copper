@@ -16,10 +16,6 @@ func (p *PrefixExpression) Col() int {
 	return p.StartCol
 }
 
-func (p *PrefixExpression) String() string {
-	return p.Operator + stringParens(p.Expression)
-}
-
 func (p *PrefixExpression) expression() {}
 
 var _ Node = (*PrefixExpression)(nil)

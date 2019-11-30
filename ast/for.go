@@ -5,7 +5,8 @@ type ForExpression struct {
 	StartLine int
 	StartCol  int
 	Ident
-	RangeExpr Expression
+	StatusIdent *Ident
+	RangeExpr   Expression
 	Block
 }
 
@@ -15,10 +16,6 @@ func (f *ForExpression) Line() int {
 
 func (f *ForExpression) Col() int {
 	return f.StartCol
-}
-
-func (f *ForExpression) String() string {
-	return "<FOR>"
 }
 
 func (f *ForExpression) expression() {}

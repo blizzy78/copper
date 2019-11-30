@@ -93,7 +93,17 @@ func (ev *Evaluator) evalIfExpression(i ast.IfExpression) (o interface{}, err er
 func (ev *Evaluator) evalForExpression(f ast.ForExpression) (o interface{}, err error) {
 	name := f.Ident.Name
 	if ev.scope.HasValue(name) {
-		err = newEvalErrorf(f.Ident.StartLine, f.Ident.StartCol, "identifier in for statement already in use: %s", f.Ident.Name)
+		err = newEvalErrorf(f.Ident.StartLine, f.Ident.StartCol, "identifier in for statement already in use: %s", name)
+		return
+	}
+
+	var statusName *string
+	if f.StatusIdent != nil {
+		statusName = &f.StatusIdent.Name
+	}
+
+	if statusName != nil && ev.scope.HasValue(*statusName) {
+		err = newEvalErrorf(f.Ident.StartLine, f.Ident.StartCol, "status identifier in for statement already in use: %s", *statusName)
 		return
 	}
 
@@ -128,6 +138,9 @@ func (ev *Evaluator) evalForExpression(f ast.ForExpression) (o interface{}, err 
 
 		loopScope.ClearSelf()
 		loopScope.Set(name, v)
+		if statusName != nil {
+			loopScope.Set(*statusName, rg.Status())
+		}
 
 		var loopOs []interface{}
 		if loopOs, err = ev.evalBlockCaptureAll(f.Block); err != nil {

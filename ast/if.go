@@ -23,10 +23,6 @@ func (i *IfExpression) Col() int {
 	return i.StartCol
 }
 
-func (i *IfExpression) String() string {
-	return "<IF>"
-}
-
 func (i *IfExpression) expression() {}
 
 func (c *ConditionalBlock) Line() int {

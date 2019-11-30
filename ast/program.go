@@ -23,8 +23,4 @@ func (p *Program) Col() int {
 	return p.StartCol
 }
 
-func (p *Program) String() string {
-	return "<PROGRAM>"
-}
-
 var _ Node = (*Program)(nil)

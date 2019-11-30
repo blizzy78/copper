@@ -1,7 +1,5 @@
 package ast
 
-import "fmt"
-
 // LetStatement assigns a value to an identifier, usually in the current scope.
 type LetStatement struct {
 	StartLine int
@@ -16,10 +14,6 @@ func (l *LetStatement) Line() int {
 
 func (l *LetStatement) Col() int {
 	return l.StartCol
-}
-
-func (l *LetStatement) String() string {
-	return fmt.Sprintf("%s = %s", l.Ident.String(), l.Expression.String())
 }
 
 func (l *LetStatement) expression() {}

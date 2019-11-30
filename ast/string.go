@@ -1,9 +1,5 @@
 package ast
 
-import (
-	"fmt"
-)
-
 // StringLiteral represents a literal string, such as "foo" (including quotes.)
 type StringLiteral struct {
 	StartLine int
@@ -17,10 +13,6 @@ func (s *StringLiteral) Line() int {
 
 func (s *StringLiteral) Col() int {
 	return s.StartCol
-}
-
-func (s *StringLiteral) String() string {
-	return fmt.Sprintf(`"%s"`, s.Value)
 }
 
 func (s *StringLiteral) expression() {}

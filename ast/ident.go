@@ -15,10 +15,6 @@ func (i *Ident) Col() int {
 	return i.StartCol
 }
 
-func (i *Ident) String() string {
-	return i.Name
-}
-
 func (i *Ident) expression() {}
 
 var _ Node = (*Ident)(nil)

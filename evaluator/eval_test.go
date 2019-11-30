@@ -466,6 +466,13 @@ func TestForStatement(t *testing.T) {
 			end`,
 			38,
 		},
+		{
+			`let x = 0
+			for i, st in range(11, 21)
+				let x = x + i + st.Index
+			end`,
+			200,
+		},
 	}
 
 	for i, test := range tests {
@@ -580,8 +587,9 @@ func mustToSlice(v interface{}) (s []interface{}) {
 func testIntObject(i int, actual interface{}, expected int64, t *testing.T) {
 	t.Helper()
 
-	if mustToInt64(actual) != expected {
-		t.Fatalf("[%d] wrong int value, expected=%d, got=%s (%T)", i, expected, actual, actual)
+	v := mustToInt64(actual)
+	if v != expected {
+		t.Fatalf("[%d] wrong int value, expected=%d, got=%d", i, expected, v)
 	}
 }
 

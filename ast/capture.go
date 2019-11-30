@@ -16,10 +16,6 @@ func (c *CaptureExpression) Col() int {
 	return c.StartCol
 }
 
-func (c *CaptureExpression) String() string {
-	return "<CAPTURE>"
-}
-
 func (c *CaptureExpression) expression() {
 }
 

@@ -15,8 +15,4 @@ func (b *Block) Col() int {
 	return b.StartCol
 }
 
-func (b *Block) String() string {
-	return "<BLOCK>"
-}
-
 var _ Node = (*Block)(nil)

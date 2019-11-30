@@ -14,10 +14,6 @@ func (b *BreakStatement) Col() int {
 	return b.StartCol
 }
 
-func (b *BreakStatement) String() string {
-	return "break"
-}
-
 func (b *BreakStatement) statement() {}
 
 var _ Node = (*BreakStatement)(nil)

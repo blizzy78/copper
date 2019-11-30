@@ -7,13 +7,6 @@ type BoolLiteral struct {
 	Value     bool
 }
 
-func (b *BoolLiteral) String() string {
-	if b.Value {
-		return "true"
-	}
-	return "false"
-}
-
 func (b *BoolLiteral) Line() int {
 	return b.StartLine
 }

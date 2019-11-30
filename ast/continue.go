@@ -14,10 +14,6 @@ func (c *ContinueStatement) Col() int {
 	return c.StartCol
 }
 
-func (c *ContinueStatement) String() string {
-	return "continue"
-}
-
 func (c *ContinueStatement) statement() {}
 
 var _ Node = (*ContinueStatement)(nil)

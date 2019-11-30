@@ -14,10 +14,6 @@ func (n *NilLiteral) Col() int {
 	return n.StartCol
 }
 
-func (n *NilLiteral) String() string {
-	return "nil"
-}
-
 func (n *NilLiteral) expression() {}
 
 var _ Node = (*NilLiteral)(nil)

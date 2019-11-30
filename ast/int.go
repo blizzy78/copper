@@ -1,9 +1,5 @@
 package ast
 
-import (
-	"strconv"
-)
-
 // IntLiteral represents a literal signed integer value.
 type IntLiteral struct {
 	StartLine int
@@ -17,10 +13,6 @@ func (i *IntLiteral) Line() int {
 
 func (i *IntLiteral) Col() int {
 	return i.StartCol
-}
-
-func (i *IntLiteral) String() string {
-	return strconv.FormatInt(i.Value, 10)
 }
 
 func (i *IntLiteral) expression() {}

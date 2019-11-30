@@ -52,95 +52,136 @@ func TestParserStartInLiteral(t *testing.T) {
 func TestParseExpression(t *testing.T) {
 	tests := []struct {
 		input    string
-		expected string
+		expected ast.Expression
 	}{
 		{
 			"-a * b",
-			"-a * b",
+			&ast.InfixExpression{
+				Left: &ast.PrefixExpression{
+					Operator: "-",
+					Expression: &ast.Ident{
+						Name: "a",
+					},
+				},
+				Operator: "*",
+				Right: &ast.Ident{
+					Name: "b",
+				},
+			},
 		},
 		{
 			"!-a",
-			"!-a",
+			&ast.PrefixExpression{
+				Operator: "!",
+				Expression: &ast.PrefixExpression{
+					Operator: "-",
+					Expression: &ast.Ident{
+						Name: "a",
+					},
+				},
+			},
 		},
 		{
 			"a + b + c",
-			"(a + b) + c",
+			&ast.InfixExpression{
+				Left: &ast.InfixExpression{
+					Left: &ast.Ident{
+						Name: "a",
+					},
+					Operator: "+",
+					Right: &ast.Ident{
+						Name: "b",
+					},
+				},
+				Operator: "+",
+				Right: &ast.Ident{
+					Name: "c",
+				},
+			},
 		},
 		{
 			"a + b - c",
-			"(a + b) - c",
+			&ast.InfixExpression{
+				Left: &ast.InfixExpression{
+					Left: &ast.Ident{
+						Name: "a",
+					},
+					Operator: "+",
+					Right: &ast.Ident{
+						Name: "b",
+					},
+				},
+				Operator: "-",
+				Right: &ast.Ident{
+					Name: "c",
+				},
+			},
 		},
 		{
 			"a * b * c",
-			"(a * b) * c",
+			&ast.InfixExpression{
+				Left: &ast.InfixExpression{
+					Left: &ast.Ident{
+						Name: "a",
+					},
+					Operator: "*",
+					Right: &ast.Ident{
+						Name: "b",
+					},
+				},
+				Operator: "*",
+				Right: &ast.Ident{
+					Name: "c",
+				},
+			},
 		},
 		{
 			"a * b / c",
-			"(a * b) / c",
+			&ast.InfixExpression{
+				Left: &ast.InfixExpression{
+					Left: &ast.Ident{
+						Name: "a",
+					},
+					Operator: "*",
+					Right: &ast.Ident{
+						Name: "b",
+					},
+				},
+				Operator: "/",
+				Right: &ast.Ident{
+					Name: "c",
+				},
+			},
 		},
 		{
 			"a + b / c",
-			"a + (b / c)",
-		},
-		{
-			"a + b * c + d / e - f",
-			"((a + (b * c)) + (d / e)) - f",
-		},
-		{
-			"5 > 4 == 3 < 4",
-			"(5 > 4) == (3 < 4)",
-		},
-		{
-			"5 < 4 != 3 > 4",
-			"(5 < 4) != (3 > 4)",
-		},
-		{
-			"3 + 4 * 5 == 3 * 1 + 4 * 5",
-			"(3 + (4 * 5)) == ((3 * 1) + (4 * 5))",
+			&ast.InfixExpression{
+				Left: &ast.Ident{
+					Name: "a",
+				},
+				Operator: "+",
+				Right: &ast.InfixExpression{
+					Left: &ast.Ident{
+						Name: "b",
+					},
+					Operator: "/",
+					Right: &ast.Ident{
+						Name: "c",
+					},
+				},
+			},
 		},
 		{
 			"true",
-			"true",
+			&ast.BoolLiteral{
+				Value: true,
+			},
 		},
 		{
 			"false",
-			"false",
-		},
-		{
-			"true == false",
-			"true == false",
-		},
-		{
-			"!false != !true",
-			"!false != !true",
-		},
-		{
-			"3 > 5 == false",
-			"(3 > 5) == false",
-		},
-		{
-			"3 < 5 == true",
-			"(3 < 5) == true",
-		},
-		{
-			"1 + (2 + 3) + 4",
-			"(1 + (2 + 3)) + 4",
-		},
-		{
-			"(5 + 5) * 2",
-			"(5 + 5) * 2",
-		},
-		{
-			"2 / (5 + 5)",
-			"2 / (5 + 5)",
-		},
-		{
-			"-(5 + 5)",
-			"-(5 + 5)",
-		},
-		{
-			"!(true == true)",
-			"!(true == true)",
+			&ast.BoolLiteral{
+				Value: false,
+			},
 		},
 	}
 
@@ -148,9 +189,7 @@ func TestParseExpression(t *testing.T) {
 		t.Run(strconv.Itoa(i), func(t *testing.T) {
 			l := newLexerString(test.input, t, lexer.WithStartInCodeMode())
 			prog := parse(l, t)
-			if prog.Statements[0].String() != test.expected {
-				t.Fatalf("wrong expression, expected=%s, got=%s", test.expected, prog.String())
-			}
+			testExpression(prog.Statements[0].(*ast.ExpressionStatement).Expression, test.expected, t)
 		})
 	}
 }
@@ -776,6 +815,36 @@ func TestParse(t *testing.T) {
 			},
 		},
 		{
+			`for i, st in range(x)
+			  "foo"
+			end`,
+			[]ast.Statement{
+				&ast.ExpressionStatement{
+					Expression: &ast.ForExpression{
+						Ident: ast.Ident{
+							Name: "i",
+						},
+						StatusIdent: &ast.Ident{
+							Name: "st",
+						},
+						RangeExpr: &ast.CallExpression{
+							Callee: newIdent("range"),
+							Params: []ast.Expression{
+								newIdent("x"),
+							},
+						},
+						Block: ast.Block{
+							Statements: []ast.Statement{
+								&ast.ExpressionStatement{
+									Expression: newStringLiteral("foo"),
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+		{
 			`capture
 			  "foo"
 			end`,
@@ -844,6 +913,8 @@ func testExpression(actual ast.Expression, expected ast.Expression, t *testing.T
 	}
 
 	switch ex := expected.(type) {
+	case *ast.Literal:
+		testLiteral(actual.(*ast.Literal), ex, t)
 	case *ast.Ident:
 		testIdentifier(actual.(*ast.Ident), ex, t)
 	case *ast.IntLiteral:
@@ -872,6 +943,14 @@ func testExpression(actual ast.Expression, expected ast.Expression, t *testing.T
 		testHashExpression(actual.(*ast.HashExpression), ex, t)
 	default:
 		t.Fatalf("unknown expression type: %T", expected)
+	}
+}
+
+func testLiteral(actual *ast.Literal, expected *ast.Literal, t *testing.T) {
+	t.Helper()
+
+	if actual.Text != expected.Text {
+		t.Fatalf("wrong literal, expected=%s, got=%s", expected.Text, actual.Text)
 	}
 }
 
@@ -999,6 +1078,9 @@ func testForExpression(actual *ast.ForExpression, expected *ast.ForExpression, t
 	t.Helper()
 
 	testIdentifier(&actual.Ident, &expected.Ident, t)
+	if actual.StatusIdent != nil || expected.StatusIdent != nil {
+		testIdentifier(actual.StatusIdent, expected.StatusIdent, t)
+	}
 	testExpression(actual.RangeExpr, expected.RangeExpr, t)
 	testBlock(&actual.Block, &expected.Block, t)
 }
@@ -1035,10 +1117,7 @@ func testParser(input string, expected *ast.Program, t *testing.T, lexerOpts ...
 
 	for i := 0; i < len(expected.Statements); i++ {
 		t.Run(fmt.Sprintf("statement %d", i), func(t *testing.T) {
-			if prog.Statements[i].String() != expected.Statements[i].String() {
-				t.Fatalf("wrong statement, expected=%s, got=%s",
-					expected.Statements[i].String(), prog.Statements[i].String())
-			}
+			testStatement(prog.Statements[i], expected.Statements[i], t)
 		})
 	}
 }

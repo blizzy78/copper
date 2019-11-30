@@ -15,10 +15,6 @@ func (h *HashExpression) Col() int {
 	return h.StartCol
 }
 
-func (h *HashExpression) String() string {
-	return "<HASH>"
-}
-
 func (h *HashExpression) expression() {}
 
 var _ Node = (*HashExpression)(nil)

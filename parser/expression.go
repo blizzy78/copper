@@ -299,6 +299,17 @@ func (p *Parser) parseForExpression() (e ast.Expression, err error) {
 		return
 	}
 
+	var statusIdent *ast.Ident
+	if p.currTokenIs(lexer.Comma) {
+		if err = p.readNextToken(); err != nil {
+			return
+		}
+
+		if statusIdent, err = p.parseIdentExpr(); err != nil {
+			return
+		}
+	}
+
 	if !p.currTokenIs(lexer.In) {
 		err = newParseErrorf(p.currToken.Line, p.currToken.Col, "in keyword expected")
 		return
@@ -347,10 +358,11 @@ func (p *Parser) parseForExpression() (e ast.Expression, err error) {
 	}
 
 	e = &ast.ForExpression{
-		StartLine: line,
-		StartCol:  col,
-		Ident:     *ident,
-		RangeExpr: expr,
+		StartLine:   line,
+		StartCol:    col,
+		Ident:       *ident,
+		StatusIdent: statusIdent,
+		RangeExpr:   expr,
 		Block: ast.Block{
 			StartLine:  blockLine,
 			StartCol:   blockCol,

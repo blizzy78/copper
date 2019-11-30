@@ -15,10 +15,6 @@ func (l *Literal) Col() int {
 	return l.StartCol
 }
 
-func (l *Literal) String() string {
-	return l.Text
-}
-
 func (l *Literal) expression() {}
 
 var _ Node = (*Literal)(nil)
