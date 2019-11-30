@@ -1,0 +1,6 @@
+<%
+let x = 0
+for i, st in range(11, 21)
+	let x = x + i + st.Index
+end
+%>
