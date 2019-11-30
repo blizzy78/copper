@@ -92,25 +92,6 @@ func (l *Lexer) Tokens() (tCh <-chan *Token, done chan<- struct{}) {
 
 			state = state(tokenCh)
 		}
-
-		// loop:
-		// 	for {
-		// 		t, err := l.next()
-		// 		if err != nil {
-		// 			t.Err = err
-		// 		}
-
-		// 		select {
-		// 		case <-doneCh:
-		// 			break loop
-		// 		case tokenCh <- &t:
-		// 			// okay
-		// 		}
-
-		// 		if t.Type == EOF || t.Err != nil {
-		// 			break
-		// 		}
-		// 	}
 	}(startState)
 
 	return
