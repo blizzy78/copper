@@ -114,9 +114,13 @@ let y = if x > 5 "foo" else "bar" end
 
 **`for IDENT in RANGE_EXPR ... end`**
 
+**`for IDENT, STATUS_IDENT in RANGE_EXPR ... end`**
+
 The `for` statement iterates over a set of values, produced by a [Ranger]. The `RANGE_EXPR`
 is an expression that must be a `Ranger`. `IDENT` is the variable identifier used in the
-`for` loop body for the current value the `Ranger` has produced.
+`for` loop body for the current value the `Ranger` has produced. `STATUS_IDENT` is an
+optional identifier for a variable that provides status of the current loop iteration
+(see [Status]).
 
 There is no builtin way to iterate over the elements of a slice, for example. Instead,
 a helper function must be used to create a `Ranger` that produces the slice's elements.
@@ -216,3 +220,4 @@ let h = {
 
 
 [Ranger]: https://godoc.org/github.com/blizzy78/copper/ranger#Ranger
+[Status]: https://godoc.org/github.com/blizzy78/copper/ranger#Status
