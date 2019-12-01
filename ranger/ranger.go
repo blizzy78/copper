@@ -72,10 +72,10 @@ func New(v interface{}) Ranger {
 }
 
 // NewInt returns a Ranger that iterates over a range of integer values. NewInt panics if maxExclusive is not
-// greater than minInclusive.
+// greater than or equal to minInclusive.
 func NewInt(minInclusive int, maxExclusive int) Ranger {
-	if maxExclusive <= minInclusive {
-		panic(errors.New("maxExclusive must be greater than minInclusive"))
+	if maxExclusive < minInclusive {
+		panic(errors.New("maxExclusive must be greater than or equal to minInclusive"))
 	}
 
 	return &intRanger{

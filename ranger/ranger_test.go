@@ -27,6 +27,14 @@ func TestNewInt(t *testing.T) {
 	is.True(!r.Next()) // no more values
 }
 
+func TestNewInt_Empty(t *testing.T) {
+	is := is.New(t)
+
+	r := NewInt(1, 1)
+
+	is.True(!r.Next()) // no more values
+}
+
 func TestNewFromTo(t *testing.T) {
 	is := is.New(t)
 
@@ -69,6 +77,14 @@ func TestNew_Slice(t *testing.T) {
 	is.True(!r.Next()) // no more values
 }
 
+func TestNew_SliceEmpty(t *testing.T) {
+	is := is.New(t)
+
+	r := New([]int{})
+
+	is.True(!r.Next()) // no more values
+}
+
 func TestNew_Hash(t *testing.T) {
 	is := is.New(t)
 
@@ -94,6 +110,14 @@ func TestNew_Hash(t *testing.T) {
 		is.Equal(s.Odd, !s.Even)
 		is.Equal(s.HasMore, i < 3)
 	}
+
+	is.True(!r.Next()) // no more values
+}
+
+func TestNew_HashEmpty(t *testing.T) {
+	is := is.New(t)
+
+	r := New(map[string]interface{}{})
 
 	is.True(!r.Next()) // no more values
 }
