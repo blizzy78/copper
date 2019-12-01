@@ -42,7 +42,7 @@ func Fuzz(data []byte) (ret int) {
 		if er := toError(recover()); er != nil {
 			msg := er.Error()
 			switch msg {
-			case "maxExclusive must be greater than minInclusive":
+			case "maxExclusive must be greater than or equal to minInclusive":
 				fallthrough
 			case "cannot get length of nil":
 				// okay
