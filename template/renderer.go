@@ -40,6 +40,7 @@ func NewRenderer(load LoadFunc, opts ...Opt) *Renderer {
 	r := &Renderer{
 		load:             load,
 		templateFuncName: "t",
+		scopeData:        map[string]interface{}{},
 	}
 
 	for _, opt := range opts {
@@ -58,9 +59,20 @@ func WithResolveArgumentFunc(r evaluator.ResolveArgumentFunc) Opt {
 }
 
 // WithScopeData configures a renderer to provide additional data to all templates being rendered.
-func WithScopeData(data map[string]interface{}) Opt {
+// WithScopeData may be used multiple times, also in combination with WithScopeDataMap.
+func WithScopeData(k string, v interface{}) Opt {
 	return func(r *Renderer) {
-		r.scopeData = data
+		r.scopeData[k] = v
+	}
+}
+
+// WithScopeDataMap configures a renderer to provide additional data to all templates being rendered.
+// WithScopeDataMap may be used multiple times, also in combination with WithScopeData.
+func WithScopeDataMap(data map[string]interface{}) Opt {
+	return func(r *Renderer) {
+		for k, v := range data {
+			r.scopeData[k] = v
+		}
 	}
 }
 

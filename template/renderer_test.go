@@ -26,11 +26,7 @@ func TestRenderer_Render(t *testing.T) {
 		return strings.NewReader(tmpl2), nil
 	}
 
-	scopeData := map[string]interface{}{
-		"safe": safe,
-	}
-
-	r := NewRenderer(load, WithScopeData(scopeData))
+	r := NewRenderer(load, WithScopeData("safe", safe))
 
 	buf := bytes.Buffer{}
 
