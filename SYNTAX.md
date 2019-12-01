@@ -151,6 +151,11 @@ let sum = 0
 for i in fromTo(1, 10)
   let sum = sum + i
 end
+
+let sum = 0
+for e in range(hash)
+  let sum = sum + e.Value
+end
 ```
 
 `capture` - Capture All Values as Slice
