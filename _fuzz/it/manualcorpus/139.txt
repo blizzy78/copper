@@ -1,0 +1,15 @@
+<dl>
+<%
+let hash = {
+	"a": 1,
+	"b": 2,
+	"c": 3
+}
+for e in range(hash)
+%>
+	<dt><% html(e.Key) %></dt>
+	<dd><% html(e.Value) %></dd>
+<%
+end
+%>
+</dl>
