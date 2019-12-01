@@ -48,7 +48,7 @@ func TestNewFromTo(t *testing.T) {
 	is.True(!r.Next()) // no more values
 }
 
-func TestNew(t *testing.T) {
+func TestNew_Slice(t *testing.T) {
 	is := is.New(t)
 
 	r := New([]int{1, 2, 3, 4, 5})
@@ -64,6 +64,35 @@ func TestNew(t *testing.T) {
 		is.Equal(s.Even, s.Index%2 == 0)
 		is.Equal(s.Odd, !s.Even)
 		is.Equal(s.HasMore, i < 5)
+	}
+
+	is.True(!r.Next()) // no more values
+}
+
+func TestNew_Hash(t *testing.T) {
+	is := is.New(t)
+
+	r := New(map[string]interface{}{
+		"a": 1,
+		"b": 2,
+		"c": 3,
+	})
+
+	for i := 1; i <= 3; i++ {
+		is.True(r.Next())
+
+		e := r.Value().(HashEntry)
+		is.True(e.Key == "a" || e.Key == "b" || e.Key == "c")
+		v := e.Value.(int)
+		is.True(v == 1 || v == 2 || v == 3)
+
+		s := r.Status()
+		is.Equal(s.Index, i-1)
+		is.Equal(s.First, i == 1)
+		is.Equal(s.Last, i == 3)
+		is.Equal(s.Even, s.Index%2 == 0)
+		is.Equal(s.Odd, !s.Even)
+		is.Equal(s.HasMore, i < 3)
 	}
 
 	is.True(!r.Next()) // no more values

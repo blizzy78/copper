@@ -29,6 +29,11 @@ type Status struct {
 	HasMore bool
 }
 
+type HashEntry struct {
+	Key   string
+	Value interface{}
+}
+
 type intRanger struct {
 	minInclusive int
 	maxExclusive int
@@ -40,8 +45,22 @@ type sliceRanger struct {
 	index int
 }
 
-// New returns a Ranger that iterates over a slice or an array. New panics if v is nil, or if it is not a slice or an array.
+type hashRanger struct {
+	h     map[string]interface{}
+	keys  []string
+	index int
+}
+
+// New returns a ranger that iterates over a slice, an array, or a hash. New panics if v is nil, or if it is of another type.
 func New(v interface{}) Ranger {
+	if h, ok := v.(map[string]interface{}); ok {
+		return &hashRanger{
+			h:     h,
+			keys:  keys(h),
+			index: -1,
+		}
+	}
+
 	if s, err := toSlice(v); err != nil {
 		panic(err)
 	} else {
@@ -121,6 +140,45 @@ func (s *sliceRanger) Status() Status {
 		Odd:     !even,
 		HasMore: s.index < lastIndex,
 	}
+}
+
+func (h *hashRanger) Next() (ok bool) {
+	i := h.index + 1
+	if ok = i < len(h.keys); ok {
+		h.index = i
+	}
+	return
+}
+
+func (h *hashRanger) Value() (v interface{}) {
+	k := h.keys[h.index]
+	return HashEntry{
+		Key:   k,
+		Value: h.h[k],
+	}
+}
+
+func (h *hashRanger) Status() Status {
+	lastIndex := len(h.keys) - 1
+	even := h.index%2 == 0
+	return Status{
+		Index:   h.index,
+		First:   h.index == 0,
+		Last:    h.index == lastIndex,
+		Even:    even,
+		Odd:     !even,
+		HasMore: h.index < lastIndex,
+	}
+}
+
+func keys(h map[string]interface{}) []string {
+	keys := make([]string, len(h))
+	index := 0
+	for k := range h {
+		keys[index] = k
+		index++
+	}
+	return keys
 }
 
 func toSlice(v interface{}) (s []interface{}, err error) {
