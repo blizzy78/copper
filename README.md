@@ -69,19 +69,15 @@ func main() {
 		return strings.NewReader(tmpl), nil
 	}
 
-	// data provided to all templates rendered by the renderer,
-	// usually contains global functions that can be used in template code
-	scopeData := map[string]interface{}{
-		// html() is a function that HTML-escapes strings and marks them
-		// as safe for output
-		"html": helpers.HTML,
-
-		// safe() is a function that marks strings as safe for output
-		"safe": helpers.Safe,
-	}
-
 	// construct a new renderer
-	r := template.NewRenderer(load, template.WithScopeData(scopeData))
+	r := template.NewRenderer(load,
+		// html will be a global template function that HTML-escapes strings and
+		// marks them as safe for output
+		template.WithScopeData("html", helpers.HTML),
+
+		// safe will be a global template function that marks strings as safe
+		// for output
+		template.WithScopeData("safe", helpers.Safe))
 
 	// a context that can be used by template helper functions
 	// the renderer does not use it
