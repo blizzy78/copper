@@ -63,14 +63,14 @@ const (
 )
 
 func main() {
-	// a function that loads a template by name
+	// load a template by name
 	// in this example, we ignore the name and always return the same template
-	load := func(name string) (io.Reader, error) {
+	loader := template.LoaderFunc(func(name string) (io.Reader, error) {
 		return strings.NewReader(tmpl), nil
-	}
+	})
 
 	// construct a new renderer
-	r := template.NewRenderer(load,
+	r := template.NewRenderer(loader,
 		// html will be a global template function that HTML-escapes strings and
 		// marks them as safe for output
 		template.WithScopeData("html", helpers.HTML),
