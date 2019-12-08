@@ -17,14 +17,20 @@ import (
 
 // Renderer parses templates, evaluates their code, and writes out the output.
 type Renderer struct {
-	load             LoadFunc
-	resolveArg       evaluator.ResolveArgumentFunc
-	scopeData        map[string]interface{}
-	templateFuncName string
+	loader            Loader
+	argumentResolvers []evaluator.ArgumentResolver
+	scopeData         map[string]interface{}
+	templateFuncName  string
 }
 
-// LoadFunc is the type of a function that loads a template with a specific name and returns it as a reader.
-type LoadFunc func(name string) (r io.Reader, err error)
+// A Loader loads a template with a specific name and returns it as a reader.
+type Loader interface {
+	Load(name string) (r io.Reader, err error)
+}
+
+// A LoaderFunc is an adapter type that allows ordinary functions to be used as Loaders.
+// If f is a function with the appropriate signature, LoaderFunc(f) is a loader that calls f.
+type LoaderFunc func(name string) (r io.Reader, err error)
 
 // Opt is the type of a function that configures r.
 type Opt func(r *Renderer)
@@ -36,9 +42,9 @@ type Opt func(r *Renderer)
 type SafeString string
 
 // NewRenderer returns a new renderer, configured with opts, that loads templates via load.
-func NewRenderer(load LoadFunc, opts ...Opt) *Renderer {
+func NewRenderer(loader Loader, opts ...Opt) *Renderer {
 	r := &Renderer{
-		load:             load,
+		loader:           loader,
 		templateFuncName: "t",
 		scopeData:        map[string]interface{}{},
 	}
@@ -50,11 +56,13 @@ func NewRenderer(load LoadFunc, opts ...Opt) *Renderer {
 	return r
 }
 
-// WithResolveArgumentFunc configures a renderer to use r to automatically resolve additional arguments of
+// WithArgumentResolver configures a renderer to use r to automatically resolve additional arguments of
 // method or function calls in a template. The default is to only resolve the current scope.Scope.
-func WithResolveArgumentFunc(r evaluator.ResolveArgumentFunc) Opt {
+//
+// WithArgumentResolver may be used multiple times to configure additional resolvers.
+func WithArgumentResolver(r evaluator.ArgumentResolver) Opt {
 	return func(rend *Renderer) {
-		rend.resolveArg = r
+		rend.argumentResolvers = append(rend.argumentResolvers, r)
 	}
 }
 
@@ -94,12 +102,12 @@ func WithTemplateFuncName(n string) Opt {
 
 // Render loads a template with a specific name, evaluates it (optionally passing additional data), and writes the output to w.
 //
-// If the template calls the renderer's templateFuncName to render other templates, the data map passed to Render will not be passed
-// to those templates.
+// If the template calls the renderer's function to render other templates (see WithTemplateFuncName), the data map passed to
+// Render will not be passed to those templates.
 //
 // Literal output is wrapped in SafeString without further escaping.
 //
-// The context is passed to an internal evaluator.ResolveArgumentFunc and can therefore be resolved automatically
+// The context is passed to an internal evaluator.ArgumentResolver and can therefore be resolved automatically
 // as an argument to method or function calls in template code.
 func (r *Renderer) Render(ctx context.Context, w io.Writer, name string, data map[string]interface{}) (err error) {
 	userScope := scope.Scope{}
@@ -135,39 +143,46 @@ func (r *Renderer) Render(ctx context.Context, w io.Writer, name string, data ma
 	rendererScope.Lock()
 
 	var rd io.Reader
-	if rd, err = r.load(name); err != nil {
+	if rd, err = r.loader.Load(name); err != nil {
 		return
 	}
 
-	ls := func(s string) (interface{}, error) {
+	ls := evaluator.LiteralStringerFunc(func(s string) (interface{}, error) {
 		return SafeString(s), nil
-	}
+	})
 
-	ra := func(t reflect.Type) (v interface{}, err error) {
+	ra := evaluator.ArgumentResolverFunc(func(t reflect.Type) (v interface{}, err error) {
 		return resolveContext(t, ctx)
+	})
+
+	evaluatorOpts := make([]evaluator.Opt, len(r.argumentResolvers)+2)
+	evaluatorOpts[0] = evaluator.WithLiteralStringer(ls)
+	evaluatorOpts[1] = evaluator.WithArgumentResolver(ra)
+	for i := 0; i < len(r.argumentResolvers); i++ {
+		evaluatorOpts[2+i] = evaluator.WithArgumentResolver(r.argumentResolvers[i])
 	}
 
-	if err = Render(rd, w, data, &rendererScope, evaluator.WithLiteralStringFunc(ls), evaluator.WithResolveArgumentFunc(ra)); err != nil {
+	if err = Render(rd, w, data, &rendererScope, evaluatorOpts...); err != nil {
 		err = fmt.Errorf("error rendering template %s: %w", name, err)
 	}
 
 	return
 }
 
-// Render loads a template from r, evaluates it using scope s (optionally passing additional data),
-// and writes the output to w. Literal output is passed to ls so that it may be escaped and wrapped in
-// SafeString. If ra is nil, no additional arguments can be resolved in method or function calls in
-// template code.
+// Render loads a template from r, evaluates it using scope s, optionally passing additional data,
+// and writes the output to w.
 func Render(r io.Reader, w io.Writer, data map[string]interface{}, s *scope.Scope, evaluatorOpts ...evaluator.Opt) (err error) {
 	templateScope := newTemplateScope(data, s)
 
-	ra := func(t reflect.Type) (v interface{}, err error) {
+	ra := evaluator.ArgumentResolverFunc(func(t reflect.Type) (v interface{}, err error) {
 		return resolveScope(t, templateScope)
-	}
+	})
 
-	newEvaluatorOpts := make([]evaluator.Opt, 0, len(evaluatorOpts)+1)
-	newEvaluatorOpts = append(newEvaluatorOpts, evaluator.WithResolveArgumentFunc(ra))
-	newEvaluatorOpts = append(newEvaluatorOpts, evaluatorOpts...)
+	newEvaluatorOpts := make([]evaluator.Opt, len(evaluatorOpts)+1)
+	newEvaluatorOpts[0] = evaluator.WithArgumentResolver(ra)
+	for i := 0; i < len(evaluatorOpts); i++ {
+		newEvaluatorOpts[1+i] = evaluatorOpts[i]
+	}
 
 	var o interface{}
 	if o, err = render(r, templateScope, newEvaluatorOpts...); err != nil {
@@ -279,4 +294,8 @@ func expectSafe(v interface{}) (s string) {
 		s = "!UNSAFE!"
 	}
 	return
+}
+
+func (l LoaderFunc) Load(name string) (r io.Reader, err error) {
+	return l(name)
 }

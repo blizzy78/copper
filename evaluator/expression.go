@@ -46,7 +46,7 @@ func (ev *Evaluator) evalExpression(e ast.Expression) (o interface{}, err error)
 }
 
 func (ev *Evaluator) evalLiteral(l ast.Literal) (o interface{}, err error) {
-	return ev.literalStringFunc(l.Text)
+	return ev.literalStringer.String(l.Text)
 }
 
 func (ev *Evaluator) evalIdentExpression(i ast.Ident) (o interface{}, err error) {
@@ -218,8 +218,8 @@ func (ev *Evaluator) evalCallExpression(c ast.CallExpression) (o interface{}, er
 		pType := fValueType.In(i)
 
 		var v interface{}
-		for _, ra := range ev.resolveArgumentFuncs {
-			if v, err = ra(pType); v != nil || err != nil {
+		for _, ra := range ev.argumentResolvers {
+			if v, err = ra.Resolve(pType); v != nil || err != nil {
 				break
 			}
 		}

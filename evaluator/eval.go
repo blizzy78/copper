@@ -10,34 +10,46 @@ import (
 
 // Evaluator evaluates an abstract syntax tree node and returns its result.
 type Evaluator struct {
-	literalStringFunc    LiteralStringFunc
-	resolveArgumentFuncs []ResolveArgumentFunc
-	scope                *scope.Scope
-	loopLevel            int
-	breakRequested       bool
-	continueRequested    bool
+	literalStringer   LiteralStringer
+	argumentResolvers []ArgumentResolver
+	scope             *scope.Scope
+	loopLevel         int
+	breakRequested    bool
+	continueRequested bool
 }
 
 // Opt is the type of a function that configures an option of ev.
 type Opt func(ev *Evaluator)
 
-// LiteralStringFunc is the type of a function that converts a literal string in a template to a value suitable for output.
+// A LiteralStringer converts a literal string in a template to a value suitable for output.
 // For example, it can wrap the string in a renderer.SafeString so that all literal strings are output as-is.
-type LiteralStringFunc func(s string) (interface{}, error)
+// It may also escape strings before wrapping them.
+type LiteralStringer interface {
+	String(s string) (interface{}, error)
+}
 
-// ResolveArgumentFunc is the type of a function that resolves additional arguments of methods or functions that should be called.
+// A LiteralStringerFunc is an adapter type that allows ordinary functions to be used as literal stringers.
+// If f is a function with the appropriate signature, LiteralStringerFunc(f) is a literal stringer that calls f.
+type LiteralStringerFunc func(s string) (interface{}, error)
+
+// An ArgumentResolver resolves additional arguments of methods or functions that should be called.
 // For example, a method could expect the arguments "x int, y *FooBar", but the method call only specifies the first argument:
-// "a.b(123)". In that case, the second *FooBar argument can be automatically resolved by the resolve function.
-//
-// The resolve function inspects the type t and returns a value for it. If no actual value can be produced, nil may be returned
-// as the value. The returned value must be convertible to the type t.
-type ResolveArgumentFunc func(t reflect.Type) (v interface{}, err error)
+// "a.b(123)". In that case, the second *FooBar argument can be automatically resolved by the argument resolver.
+type ArgumentResolver interface {
+	// Resolve inspects the type t and returns a value for it. If no actual value can be produced, nil may be returned
+	// as the value. The returned value must be convertible to the type t.
+	Resolve(t reflect.Type) (v interface{}, err error)
+}
+
+// An ArgumentResolverFunc is an adapter type that allows ordinary functions to be used as argument resolvers.
+// If f is a function with the appropriate signature, ArgumentResolverFunc(f) is an argument resolver that calls f.
+type ArgumentResolverFunc func(t reflect.Type) (v interface{}, err error)
 
 // New returns a new evaluator, configured with opts.
 func New(opts ...Opt) *Evaluator {
 	ev := &Evaluator{
-		literalStringFunc:    defaultLiteral,
-		resolveArgumentFuncs: []ResolveArgumentFunc{defaultResolve},
+		literalStringer:   LiteralStringerFunc(defaultLiteral),
+		argumentResolvers: []ArgumentResolver{ArgumentResolverFunc(defaultResolve)},
 	}
 
 	for _, opt := range opts {
@@ -47,22 +59,22 @@ func New(opts ...Opt) *Evaluator {
 	return ev
 }
 
-// WithLiteralStringFunc configures an evaluator to use l to convert literal strings in a template to values
-// suitable for output. The default is to wrap these strings in renderer.SafeString (without escaping.)
-func WithLiteralStringFunc(l LiteralStringFunc) Opt {
+// WithLiteralStringer configures an evaluator to use l to convert literal strings in a template to values
+// suitable for output. The default is to return strings as-is, without escaping.
+func WithLiteralStringer(l LiteralStringer) Opt {
 	return func(ev *Evaluator) {
-		ev.literalStringFunc = l
+		ev.literalStringer = l
 	}
 }
 
-// WithResolveArgumentFunc configures an evaluator to use r to automatically resolve additional arguments of
+// WithArgumentResolver configures an evaluator to use r to automatically resolve additional arguments of
 // method or function calls in a template. The default is to not resolve any arguments.
 //
-// WithResolveArgumentFunc may be used multiple times to configure multiple resolvers. The first resolver
+// WithArgumentResolver may be used multiple times to configure additional resolvers. The first resolver
 // to return a value other than nil wins.
-func WithResolveArgumentFunc(r ResolveArgumentFunc) Opt {
+func WithArgumentResolver(r ArgumentResolver) Opt {
 	return func(ev *Evaluator) {
-		ev.resolveArgumentFuncs = append(ev.resolveArgumentFuncs, r)
+		ev.argumentResolvers = append(ev.argumentResolvers, r)
 	}
 }
 
@@ -120,4 +132,12 @@ func normalize(v interface{}) (o interface{}) {
 	default:
 		return v
 	}
+}
+
+func (f LiteralStringerFunc) String(s string) (interface{}, error) {
+	return f(s)
+}
+
+func (r ArgumentResolverFunc) Resolve(t reflect.Type) (v interface{}, err error) {
+	return r(t)
 }

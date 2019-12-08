@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"io"
+	"reflect"
 	"strings"
 	"testing"
 
@@ -13,26 +14,40 @@ import (
 	"github.com/blizzy78/copper/scope"
 )
 
+type FooData string
+
 func TestRenderer_Render(t *testing.T) {
 	is := is.New(t)
 
-	tmpl1 := `hello <% t("tmpl2", { "name": "world" }) %>!`
+	tmpl1 := `hello <% t("tmpl2", { "name": "world " + foo() }) %>!`
 	tmpl2 := `<% safe(name) %>`
 
-	load := func(name string) (io.Reader, error) {
+	l := LoaderFunc(func(name string) (io.Reader, error) {
 		if name == "tmpl1" {
 			return strings.NewReader(tmpl1), nil
 		}
 		return strings.NewReader(tmpl2), nil
+	})
+
+	foo := func(f FooData) string {
+		return string(f)
 	}
 
-	r := NewRenderer(load, WithScopeData("safe", safe))
+	fooData := FooData("bar")
+	ra := evaluator.ArgumentResolverFunc(func(t reflect.Type) (interface{}, error) {
+		if reflect.ValueOf(fooData).Type().ConvertibleTo(t) {
+			return fooData, nil
+		}
+		return nil, nil
+	})
+
+	r := NewRenderer(l, WithScopeData("safe", safe), WithScopeData("foo", foo), WithArgumentResolver(ra))
 
 	buf := bytes.Buffer{}
 
 	err := r.Render(context.Background(), &buf, "tmpl1", nil)
 	is.NoErr(err)
-	is.Equal(buf.String(), "hello world!")
+	is.Equal(buf.String(), "hello world bar!")
 }
 
 func TestRender(t *testing.T) {
@@ -45,11 +60,11 @@ func TestRender(t *testing.T) {
 
 	s.Set("safe", safe)
 
-	ls := func(s string) (interface{}, error) {
+	ls := evaluator.LiteralStringerFunc(func(s string) (interface{}, error) {
 		return SafeString(s), nil
-	}
+	})
 
-	if err := Render(strings.NewReader(tmpl), &w, nil, &s, evaluator.WithLiteralStringFunc(ls)); err != nil {
+	if err := Render(strings.NewReader(tmpl), &w, nil, &s, evaluator.WithLiteralStringer(ls)); err != nil {
 		t.Fatalf("error while rendering: %v", err)
 	}
 
