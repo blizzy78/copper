@@ -206,14 +206,12 @@ end
 Conditionals - `if`, `elseif`, `else`
 -------------------------------------
 
-**`if BOOL_EXPR ... end`**
-
-**`if BOOL_EXPR ... elseif BOOL_EXPR ... elseif BOOL_EXPR ... else ... end`**
+**`if BOOL_EXPR ... elseif BOOL_EXPR ... else ... end`**
 
 `if`/`elseif`/`else` execute the enclosed statements only if `BOOL_EXPR` evaluates to
-`true`. Multiple `elseif` statements may be used, but only one `else` statement, which
-must be the last. The last `if`/`elseif`/`else` block (whichever comes last) must be
-closed with the `end` statement.
+`true`. Zero or more `elseif` statements may be used, but only zero or one `else`
+statement, which must be the last. The last `if`/`elseif`/`else` block (whichever comes
+last) must be closed with the `end` statement.
 
 ### Expressions ###
 
