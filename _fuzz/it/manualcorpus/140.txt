@@ -1,0 +1,6 @@
+<%
+let x = true || false
+let x = true && true
+let x = false || true && false
+let x = 2 < 5 || 5 > 1 && a != b
+%>
