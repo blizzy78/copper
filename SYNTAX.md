@@ -19,6 +19,9 @@ let s = "foo" + "bar"
 // boolean expressions
 let x = y >= 5
 let x = boolA || boolB && boolC
+
+// accessing fields, methods, slice elements
+let x = y.foo.bar().baz[qux]
 ```
 
 Code Blocks
