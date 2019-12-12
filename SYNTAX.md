@@ -27,6 +27,24 @@ let x = boolA || boolB && boolC
 let x = y.foo.bar().baz[qux]
 ```
 
+Line Breaks
+-----------
+
+Copper ignores line breaks in code completely. That is to say, use line breaks to make your
+code more readable. Copper itself doesn't care.
+
+```
+// you really should use line breaks like in this example
+if x > 5
+  foo()
+else
+  bar()
+end
+
+// this is equivalent, but not as readable
+if x > 5 foo() else bar() end
+```
+
 Code Blocks
 -----------
 
