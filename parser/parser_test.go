@@ -55,6 +55,18 @@ func TestParseExpression(t *testing.T) {
 		expected ast.Expression
 	}{
 		{
+			"true",
+			&ast.BoolLiteral{
+				Value: true,
+			},
+		},
+		{
+			"false",
+			&ast.BoolLiteral{
+				Value: false,
+			},
+		},
+		{
 			"-a * b",
 			&ast.InfixExpression{
 				Left: &ast.PrefixExpression{
@@ -172,15 +184,21 @@ func TestParseExpression(t *testing.T) {
 			},
 		},
 		{
-			"true",
-			&ast.BoolLiteral{
-				Value: true,
-			},
-		},
-		{
-			"false",
-			&ast.BoolLiteral{
-				Value: false,
+			"a || b && c",
+			&ast.InfixExpression{
+				Left: &ast.Ident{
+					Name: "a",
+				},
+				Operator: "||",
+				Right: &ast.InfixExpression{
+					Left: &ast.Ident{
+						Name: "b",
+					},
+					Operator: "&&",
+					Right: &ast.Ident{
+						Name: "c",
+					},
+				},
 			},
 		},
 	}

@@ -145,7 +145,7 @@ func TestLexer(t *testing.T) {
 			},
 		},
 		{
-			`  = + (   ) , ! == != <= >= "ab  cd" '  ef
+			`  = + (   ) , ! == != <= >= || && "ab  cd" '  ef
 gh  ' `,
 			[]expectedToken{
 				{Assign, "="},
@@ -158,6 +158,8 @@ gh  ' `,
 				{NotEqual, "!="},
 				{LessOrEqual, "<="},
 				{GreaterOrEqual, ">="},
+				{Or, "||"},
+				{And, "&&"},
 				{String, "ab  cd"},
 				{String, `  ef
 gh  `},

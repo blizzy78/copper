@@ -22,10 +22,12 @@ type infixParseFunc func(left ast.Expression, currPrecedence int) (e ast.Express
 
 const (
 	precedenceLowest = iota + 1
-	precedenceEquals
-	precedenceLessGreater
-	precedenceSum
-	precedenceProduct
+	precedenceOr
+	precedenceAnd
+	precedenceEquality
+	precedenceRelational
+	precedenceAdditive
+	precedenceMultiplicative
 	precedencePrefix
 	precedenceField
 )
@@ -36,17 +38,19 @@ var (
 	}
 
 	precedences = map[lexer.TokenType]int{
-		lexer.Equal:          precedenceEquals,
-		lexer.NotEqual:       precedenceEquals,
-		lexer.LessThan:       precedenceLessGreater,
-		lexer.LessOrEqual:    precedenceLessGreater,
-		lexer.GreaterThan:    precedenceLessGreater,
-		lexer.GreaterOrEqual: precedenceLessGreater,
-		lexer.Plus:           precedenceSum,
-		lexer.Minus:          precedenceSum,
-		lexer.Slash:          precedenceProduct,
-		lexer.Asterisk:       precedenceProduct,
-		lexer.Mod:            precedenceProduct,
+		lexer.Or:             precedenceOr,
+		lexer.And:            precedenceAnd,
+		lexer.Equal:          precedenceEquality,
+		lexer.NotEqual:       precedenceEquality,
+		lexer.LessThan:       precedenceRelational,
+		lexer.LessOrEqual:    precedenceRelational,
+		lexer.GreaterThan:    precedenceRelational,
+		lexer.GreaterOrEqual: precedenceRelational,
+		lexer.Plus:           precedenceAdditive,
+		lexer.Minus:          precedenceAdditive,
+		lexer.Slash:          precedenceMultiplicative,
+		lexer.Asterisk:       precedenceMultiplicative,
+		lexer.Mod:            precedenceMultiplicative,
 		lexer.LeftParen:      precedenceField,
 		lexer.Dot:            precedenceField,
 		lexer.LeftBracket:    precedenceField,
@@ -122,6 +126,8 @@ func (p *Parser) initialize() (err error) {
 	p.registerInfixParseFunc(lexer.GreaterThan, p.parseInfixExpression)
 	p.registerInfixParseFunc(lexer.LessOrEqual, p.parseInfixExpression)
 	p.registerInfixParseFunc(lexer.GreaterOrEqual, p.parseInfixExpression)
+	p.registerInfixParseFunc(lexer.Or, p.parseInfixExpression)
+	p.registerInfixParseFunc(lexer.And, p.parseInfixExpression)
 	p.registerInfixParseFunc(lexer.Plus, p.parseInfixExpression)
 	p.registerInfixParseFunc(lexer.Minus, p.parseInfixExpression)
 	p.registerInfixParseFunc(lexer.Slash, p.parseInfixExpression)

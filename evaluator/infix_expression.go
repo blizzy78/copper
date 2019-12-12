@@ -73,6 +73,10 @@ func evalBoolInfixExpression(l bool, r bool, op string, line int, col int) (o in
 		o = l == r
 	case "!=":
 		o = l != r
+	case "||":
+		o = l || r
+	case "&&":
+		o = l && r
 	default:
 		err = newEvalErrorf(line, col, "unexpected operator in bool infix expression: %s", op)
 	}

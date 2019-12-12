@@ -134,6 +134,9 @@ func TestEvalIfExpression(t *testing.T) {
 		{`if 2 < 3 5 end`, 5},
 		{`if 2 < 3 5 else 7 end`, 5},
 		{`if 2 > 3 5 else 7 end`, 7},
+		{`if true || false 1 else 2 end`, 1},
+		{`if true && false 1 else 2 end`, 2},
+		{`if false || true && true 1 else 2 end`, 1},
 		{
 			`if 1 > 2
 				10

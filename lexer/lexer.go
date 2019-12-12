@@ -2,6 +2,7 @@ package lexer
 
 import (
 	"bufio"
+	"errors"
 	"io"
 	"strings"
 )
@@ -202,6 +203,10 @@ func (l *Lexer) parseCode(tCh chan<- *Token) stateFunc {
 		return l.parseLessThanOrLessEqual
 	case '>':
 		return l.parseGreaterThanOrGreaterEqual
+	case '|':
+		return l.parseOr
+	case '&':
+		return l.parseAnd
 	}
 
 	return l.parseIllegal
@@ -410,6 +415,22 @@ func (l *Lexer) parseGreaterThanOrGreaterEqual(tCh chan<- *Token) stateFunc {
 	}
 
 	return l.parseToken(GreaterThan, ">")
+}
+
+func (l *Lexer) parseOr(tCh chan<- *Token) stateFunc {
+	if !l.nextCharIs('|') {
+		return l.parseError(newParseError(errors.New("expected ||"), l.line, l.col), l.line, l.col)
+	}
+
+	return l.parseToken(Or, "||")
+}
+
+func (l *Lexer) parseAnd(tCh chan<- *Token) stateFunc {
+	if !l.nextCharIs('&') {
+		return l.parseError(newParseError(errors.New("expected &&"), l.line, l.col), l.line, l.col)
+	}
+
+	return l.parseToken(And, "&&")
 }
 
 func (l *Lexer) parseSlashOrComment(tCh chan<- *Token) stateFunc {

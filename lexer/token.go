@@ -81,6 +81,12 @@ const (
 	// GreaterOrEqual is the token type used for the greater or equals character sequence ">=".
 	GreaterOrEqual
 
+	// Or is the token type used for the boolean OR character sequence "||".
+	Or
+
+	// And is the token type used for the boolean AND character sequence "&&".
+	And
+
 	// Dot is the token type used for the dot character '.'.
 	Dot
 
@@ -167,6 +173,8 @@ var (
 		GreaterThan:    "GREATER_THAN",
 		LessOrEqual:    "LESS_OR_EQUAL",
 		GreaterOrEqual: "GREATER_OR_EQUAL",
+		Or:             "OR",
+		And:            "AND",
 		Dot:            "DOT",
 		Comma:          "COMMA",
 		Colon:          "COLON",
