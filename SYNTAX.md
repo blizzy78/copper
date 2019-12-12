@@ -16,6 +16,9 @@ let x = 123
 // strings, string concatenation
 let s = "foo" + "bar"
 
+// math(s)
+let x = (2 + 2) / 4 * 3 % 5 - 7
+
 // boolean expressions
 let x = y >= 5
 let x = boolA || boolB && boolC
@@ -180,6 +183,56 @@ let sum = 0
 for e in range(hash)
   let sum = sum + e.Value
 end
+```
+
+Conditionals - `if`, `elseif`, `else`
+-------------------------------------
+
+**`if BOOL_EXPR ... end`**
+
+**`if BOOL_EXPR ... elseif BOOL_EXPR ... elseif BOOL_EXPR ... else ... end`**
+
+`if`/`elseif`/`else` execute the enclosed statements only if `BOOL_EXPR` evaluates to
+`true`. Multiple `elseif` statements may be used, but only one `else` statement, which
+must be the last. The last `if`/`elseif`/`else` block (whichever comes last) must be
+closed with the `end` statement.
+
+### Expressions ###
+
+`if` statements can be used as expressions that return all values of expression statements
+inside the block that has been executed, as a slice. That is, the `if` statement acts as
+if it was inside a `capture ... end` block.
+
+If the returned slice would be empty, `nil` is returned instead of the slice. If the
+slice would only contain a single element, the value of that element is returned instead
+of the slice.
+
+### Example ###
+
+```
+if x > 5
+  let y = "foo"
+else
+  let y = "bar"
+end
+
+// or rewrite using if as an expression
+let y = if x > 5
+  "foo"
+else
+  "bar"
+end
+
+// or rewrite as a single line expression
+// (just removed the line breaks)
+let y = if x > 5 "foo" else "bar" end
+
+// call a function using conditional argument
+theFunc(if x > 5
+  "foo"
+else
+  "bar"
+end)
 ```
 
 Capture All Expressions as Slice - `capture`
