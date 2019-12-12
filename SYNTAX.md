@@ -4,6 +4,23 @@ Template Language
 Copper uses a language similar to Go which should be fairly easy to use. The following
 constructs are available:
 
+Primitives, Common Expressions
+------------------------------
+
+The following should be fairly self-explanatory. All your usual programming primitives and operators.
+
+```
+// integers
+let x = 123
+
+// strings, string concatenation
+let s = "foo" + "bar"
+
+// boolean expressions
+let x = y >= 5
+let x = boolA || boolB && boolC
+```
+
 Code Blocks
 -----------
 
@@ -84,7 +101,7 @@ else
 end
 ```
 
-`let` - Variable Assignment
+Variable Assignment - `let`
 ---------------------------
 
 **`let IDENT = EXPR`**
@@ -109,7 +126,7 @@ let x = 1 + 2 * 3   // set x=7
 let y = if x > 5 "foo" else "bar" end
 ```
 
-`for` - Loop
+Loop - `for`
 ------------
 
 **`for IDENT in RANGE_EXPR ... end`**
@@ -120,10 +137,11 @@ The `for` statement iterates over a set of values, produced by a [Ranger]. The `
 is an expression that must be a `Ranger`. `IDENT` is the variable identifier used in the
 `for` loop body for the current value the `Ranger` has produced. `STATUS_IDENT` is an
 optional identifier for a variable that provides status of the current loop iteration
-(see [Status]).
+(see [Status].)
 
 There is no builtin way to iterate over the elements of a slice, for example. Instead,
-a helper function must be used to create a `Ranger` that produces the slice's elements.
+a helper function must be used to create a `Ranger` that produces the slice's elements
+(see example.)
 
 The `for` loop's body is ended with the `end` statement.
 
@@ -143,23 +161,26 @@ of the slice.
 ### Example ###
 
 ```
+// use helper function range() to produce a ranger over stringSlice
 for s in range(stringSlice)
   safe(s)
 end
 
 let sum = 0
+// use helper function fromTo() to produce a ranger over integers
 for i in fromTo(1, 10)
   let sum = sum + i
 end
 
 let sum = 0
+// use helper function range() to produce a ranger over a hash
 for e in range(hash)
   let sum = sum + e.Value
 end
 ```
 
-`capture` - Capture All Values as Slice
----------------------------------------
+Capture All Expressions as Slice - `capture`
+--------------------------------------------
 
 **`capture ... end`**
 
@@ -186,8 +207,8 @@ foo({
   // pass the article's headline as the "headline" entry
   "headline": article.headline,
 
-  // pass the "body" entry containing a mix of literal output and code block
-  // because those are multiple expressions, "capture" must be used to combine them
+  // pass the "body" entry containing a mix of literal output and code blocks -
+  // because these are multiple expressions, "capture" must be used to combine them
   // into a single slice
   "body": capture %>
     <p>
@@ -198,7 +219,7 @@ foo({
 %>
 ```
 
-`{ }` - Hash
+Hash - `{ }`
 ------------
 
 **`{ KEY_1_EXPR: EXPR_1, ... }`**

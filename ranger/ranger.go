@@ -52,6 +52,7 @@ type hashRanger struct {
 }
 
 // New returns a ranger that iterates over a slice, an array, or a hash. New panics if v is nil, or if it is of another type.
+// If v is a hash, the ranger will produce HashEntry elements.
 func New(v interface{}) Ranger {
 	if h, ok := v.(map[string]interface{}); ok {
 		return &hashRanger{
