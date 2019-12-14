@@ -51,7 +51,9 @@ func (ev *Evaluator) evalStatements(st []ast.Statement) (o interface{}, err erro
 }
 
 func (ev *Evaluator) evalStatementsCaptureAll(st []ast.Statement) (os []interface{}, err error) {
-	for _, st := range st {
+	os = make([]interface{}, len(st))
+
+	for i, st := range st {
 		var o interface{}
 		if o, err = ev.evalStatement(st); err != nil {
 			break
@@ -73,7 +75,7 @@ func (ev *Evaluator) evalStatementsCaptureAll(st []ast.Statement) (os []interfac
 			break
 		}
 
-		os = append(os, o)
+		os[i] = o
 	}
 
 	return

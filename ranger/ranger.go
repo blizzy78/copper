@@ -195,9 +195,9 @@ func toSlice(v interface{}) (s []interface{}, err error) {
 		fallthrough
 	case reflect.Slice:
 		l := value.Len()
+		s = make([]interface{}, l)
 		for i := 0; i < l; i++ {
-			el := value.Index(i).Interface()
-			s = append(s, el)
+			s[i] = value.Index(i).Interface()
 		}
 
 	default:
