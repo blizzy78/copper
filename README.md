@@ -107,6 +107,11 @@ func main() {
 }
 ```
 
+Usage on Command Line
+---------------------
+
+You can use the [coppercli] tool to render text on the command line.
+
 License
 -------
 
@@ -122,3 +127,4 @@ Copper is licensed under the MIT license.
 [httprouter]: https://github.com/julienschmidt/httprouter
 [SYNTAX.md]: SYNTAX.md
 [helper function]: https://godoc.org/github.com/blizzy78/copper/helpers
+[coppercli]: https://github.com/blizzy78/coppercli
