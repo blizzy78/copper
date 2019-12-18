@@ -1153,8 +1153,8 @@ func parse(l *lexer.Lexer, t *testing.T) (prog *ast.Program) {
 	return
 }
 
-func newLexerString(s string, t *testing.T, opts ...lexer.Opt) (l *lexer.Lexer) {
-	t.Helper()
+func newLexerString(s string, tb testing.TB, opts ...lexer.Opt) (l *lexer.Lexer) {
+	tb.Helper()
 
 	r := bytes.NewReader([]byte(s))
 	return lexer.New(r, opts...)
