@@ -336,14 +336,7 @@ func (l *Lexer) parseBlockComment(tCh chan<- *Token) stateFunc {
 			}
 
 			if l.currChar == '*' && l.nextCharIs('/') {
-				if err := l.readNextChar(); err != nil {
-					return l.parseError(err, l.line, l.col)
-				}
-				if err := l.readNextChar(); err != nil {
-					return l.parseError(err, l.line, l.col)
-				}
-
-				return l.parseCode
+				return l.readNextCharsAndThen(2, l.parseCode)
 			}
 
 			if err := l.readNextChar(); err != nil {
