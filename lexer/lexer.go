@@ -128,25 +128,11 @@ func (l *Lexer) parseEOF(tCh chan<- *Token) stateFunc {
 }
 
 func (l *Lexer) parseCodeStart(tCh chan<- *Token) stateFunc {
-	if err := l.readNextChar(); err != nil {
-		return l.parseError(err, l.line, l.col)
-	}
-	if err := l.readNextChar(); err != nil {
-		return l.parseError(err, l.line, l.col)
-	}
-
-	return l.parseCode
+	return l.readNextCharsAndThen(2, l.parseCode)
 }
 
 func (l *Lexer) parseCodeEnd(tCh chan<- *Token) stateFunc {
-	if err := l.readNextChar(); err != nil {
-		return l.parseError(err, l.line, l.col)
-	}
-	if err := l.readNextChar(); err != nil {
-		return l.parseError(err, l.line, l.col)
-	}
-
-	return l.parseLiteral
+	return l.readNextCharsAndThen(2, l.parseLiteral)
 }
 
 func (l *Lexer) parseCode(tCh chan<- *Token) stateFunc {
@@ -321,60 +307,50 @@ func (l *Lexer) parseString(tCh chan<- *Token) stateFunc {
 }
 
 func (l *Lexer) parseLineComment(tCh chan<- *Token) stateFunc {
-	if err := l.readNextChar(); err != nil {
-		return l.parseError(err, l.line, l.col)
-	}
-	if err := l.readNextChar(); err != nil {
-		return l.parseError(err, l.line, l.col)
-	}
+	return l.readNextCharsAndThen(2, func(tCh chan<- *Token) stateFunc {
+		for {
+			if l.currEOF {
+				return l.parseEOF
+			}
 
-	for {
-		if l.currEOF {
-			return l.parseEOF
-		}
+			if l.currChar == '\n' {
+				return l.parseCode
+			}
 
-		if l.currChar == '\n' {
-			return l.parseCode
-		}
+			if !l.optStartInCode && l.isAtCodeEnd() {
+				return l.parseCodeEnd
+			}
 
-		if !l.optStartInCode && l.isAtCodeEnd() {
-			return l.parseCodeEnd
+			if err := l.readNextChar(); err != nil {
+				return l.parseError(err, l.line, l.col)
+			}
 		}
-
-		if err := l.readNextChar(); err != nil {
-			return l.parseError(err, l.line, l.col)
-		}
-	}
+	})
 }
 
 func (l *Lexer) parseBlockComment(tCh chan<- *Token) stateFunc {
-	if err := l.readNextChar(); err != nil {
-		return l.parseError(err, l.line, l.col)
-	}
-	if err := l.readNextChar(); err != nil {
-		return l.parseError(err, l.line, l.col)
-	}
+	return l.readNextCharsAndThen(2, func(tCh chan<- *Token) stateFunc {
+		for {
+			if l.currEOF {
+				return l.parseEOF
+			}
 
-	for {
-		if l.currEOF {
-			return l.parseEOF
-		}
+			if l.currChar == '*' && l.nextCharIs('/') {
+				if err := l.readNextChar(); err != nil {
+					return l.parseError(err, l.line, l.col)
+				}
+				if err := l.readNextChar(); err != nil {
+					return l.parseError(err, l.line, l.col)
+				}
 
-		if l.currChar == '*' && l.nextCharIs('/') {
+				return l.parseCode
+			}
+
 			if err := l.readNextChar(); err != nil {
 				return l.parseError(err, l.line, l.col)
 			}
-			if err := l.readNextChar(); err != nil {
-				return l.parseError(err, l.line, l.col)
-			}
-
-			return l.parseCode
 		}
-
-		if err := l.readNextChar(); err != nil {
-			return l.parseError(err, l.line, l.col)
-		}
-	}
+	})
 }
 
 func (l *Lexer) parseAssignOrEqual(tCh chan<- *Token) stateFunc {
@@ -509,6 +485,15 @@ func (l *Lexer) isAtCodeEnd() bool {
 
 func (l *Lexer) isAtBlockCommentEnd() bool {
 	return l.currChar == '*' && l.nextCharIs('/')
+}
+
+func (l *Lexer) readNextCharsAndThen(num int, next stateFunc) stateFunc {
+	for i := 0; i < num; i++ {
+		if err := l.readNextChar(); err != nil {
+			return l.parseError(err, l.line, l.col)
+		}
+	}
+	return next
 }
 
 func (l *Lexer) readNextChar() (err error) {
