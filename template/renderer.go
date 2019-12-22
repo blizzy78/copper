@@ -214,25 +214,27 @@ func newTemplateScope(data map[string]interface{}, parent *scope.Scope) (s *scop
 
 func render(r io.Reader, s *scope.Scope, evaluatorOpts ...evaluator.Opt) (o interface{}, err error) {
 	l := lexer.New(r)
-
 	tCh, doneCh := l.Tokens()
 
 	p := parser.New(tCh, doneCh)
-
 	var prog *ast.Program
 	if prog, err = p.Parse(); err != nil {
 		return
 	}
 
 	// wrap capture around the original statements to capture all output
-	prog.Statements = []ast.Statement{
-		capture(prog.Statements),
+	prog = &ast.Program{
+		Statements: []ast.Statement{
+			capture(prog.Statements),
+		},
 	}
 
-	ev := evaluator.New(evaluatorOpts...)
-	o, err = ev.Eval(prog, s)
+	return renderProgram(prog, s, evaluatorOpts...)
+}
 
-	return
+func renderProgram(p *ast.Program, s *scope.Scope, evaluatorOpts ...evaluator.Opt) (interface{}, error) {
+	ev := evaluator.New(evaluatorOpts...)
+	return ev.Eval(p, s)
 }
 
 func capture(statements []ast.Statement) ast.Statement {
