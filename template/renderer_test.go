@@ -51,6 +51,8 @@ func TestRenderer_Render(t *testing.T) {
 }
 
 func TestRender(t *testing.T) {
+	is := is.New(t)
+
 	tmpl := ` aäöüÄÖÜß€ <% safe("b") %> c <% safe("d") %> e <% if 1 > 2 %> foo <% end %><% if 1 < 2 %> bar <% end %><% safe("hi") %> zzz `
 	expected := ` aäöüÄÖÜß€ b c d e  bar hi zzz `
 
@@ -64,15 +66,29 @@ func TestRender(t *testing.T) {
 		return SafeString(s), nil
 	})
 
-	if err := Render(strings.NewReader(tmpl), &w, nil, &s, evaluator.WithLiteralStringer(ls)); err != nil {
-		t.Fatalf("error while rendering: %v", err)
-	}
+	err := Render(strings.NewReader(tmpl), &w, nil, &s, evaluator.WithLiteralStringer(ls))
+
+	is.NoErr(err)
 
 	res := w.String()
+	is.Equal(res, expected)
+}
 
-	if res != expected {
-		t.Fatalf("wrong string, expected=<%s>, got=<%s>", expected, res)
-	}
+func TestRender_Unsafe(t *testing.T) {
+	is := is.New(t)
+
+	tmpl := `<% "foo" %>`
+	expected := "!UNSAFE!"
+
+	w := strings.Builder{}
+	s := scope.Scope{}
+
+	err := Render(strings.NewReader(tmpl), &w, nil, &s)
+
+	is.NoErr(err)
+
+	res := w.String()
+	is.Equal(res, expected)
 }
 
 func safe(s string) SafeString {

@@ -290,6 +290,10 @@ func expectSafe(v interface{}) (s string) {
 			buf.WriteString(expectSafe(el))
 		}
 		s = buf.String()
+	case string:
+		if value != "" {
+			s = "!UNSAFE!"
+		}
 	default:
 		s = "!UNSAFE!"
 	}
