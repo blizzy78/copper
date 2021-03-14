@@ -11,13 +11,25 @@ func (ev *Evaluator) evalInfixExpression(i ast.InfixExpression) (o interface{}, 
 	if left, err = ev.eval(i.Left); err != nil {
 		return
 	}
+	leftKind := reflect.ValueOf(left).Kind()
+
+	// short-circuit expressions like "falsy && truthy"
+	if left != nil && leftKind == reflect.Bool && i.Operator == "&&" {
+		var l bool
+		l, err = toBool(left)
+		if err != nil {
+			return
+		}
+		if !l {
+			o = false
+			return
+		}
+	}
 
 	var right interface{}
 	if right, err = ev.eval(i.Right); err != nil {
 		return
 	}
-
-	leftKind := reflect.ValueOf(left).Kind()
 	rightKind := reflect.ValueOf(right).Kind()
 
 	switch {

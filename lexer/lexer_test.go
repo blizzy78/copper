@@ -430,5 +430,5 @@ func newLexerString(s string, tb testing.TB, opts ...Opt) (l *Lexer) {
 }
 
 func (e *expectedToken) String() string {
-	return string(e.typ) + "{" + e.literal + "}"
+	return strconv.Itoa(int(e.typ)) + "{" + e.literal + "}"
 }

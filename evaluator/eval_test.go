@@ -256,6 +256,13 @@ func TestIdentExpression(t *testing.T) {
 			map[string]interface{}{},
 			11,
 		},
+		{
+			`x && y`,
+			map[string]interface{}{
+				"x": false,
+			},
+			false,
+		},
 	}
 
 	for i, test := range tests {
