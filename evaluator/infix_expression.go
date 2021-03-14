@@ -13,7 +13,7 @@ func (ev *Evaluator) evalInfixExpression(i ast.InfixExpression) (o interface{}, 
 	}
 	leftKind := reflect.ValueOf(left).Kind()
 
-	// short-circuit expressions like "falsy && truthy"
+	// short-circuit expressions like "falsy && ..."
 	if left != nil && leftKind == reflect.Bool && i.Operator == "&&" {
 		var l bool
 		l, err = toBool(left)
@@ -22,6 +22,19 @@ func (ev *Evaluator) evalInfixExpression(i ast.InfixExpression) (o interface{}, 
 		}
 		if !l {
 			o = false
+			return
+		}
+	}
+
+	// short-circuit expressions like "truthy || ..."
+	if left != nil && leftKind == reflect.Bool && i.Operator == "||" {
+		var l bool
+		l, err = toBool(left)
+		if err != nil {
+			return
+		}
+		if l {
+			o = true
 			return
 		}
 	}

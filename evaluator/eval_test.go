@@ -263,6 +263,13 @@ func TestIdentExpression(t *testing.T) {
 			},
 			false,
 		},
+		{
+			`x || y`,
+			map[string]interface{}{
+				"x": true,
+			},
+			true,
+		},
 	}
 
 	for i, test := range tests {
