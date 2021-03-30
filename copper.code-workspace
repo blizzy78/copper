@@ -1,0 +1,13 @@
+{
+	"folders": [
+		{
+			"path": "."
+		}
+	],
+	"extensions": {
+		"recommendations": [
+			"golang.go",
+			"EditorConfig.EditorConfig"
+		]
+	}
+}
