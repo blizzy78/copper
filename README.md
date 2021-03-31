@@ -44,7 +44,6 @@ package main
 import (
 	"bytes"
 	"context"
-	"fmt"
 	"io"
 	"strings"
 
@@ -63,10 +62,10 @@ const (
 )
 
 func main() {
-	// load a template by name
+	// load a template by name -
 	// in this example, we ignore the name and always return the same template
-	loader := template.LoaderFunc(func(name string) (io.Reader, error) {
-		return strings.NewReader(tmpl), nil
+	loader := template.LoaderFunc(func(name string) (io.ReadCloser, error) {
+		return io.NopCloser(strings.NewReader(tmpl)), nil
 	})
 
 	// construct a new renderer
@@ -79,18 +78,18 @@ func main() {
 		// for output
 		template.WithScopeData("safe", helpers.Safe))
 
-	// a context that can be used by template helper functions
+	// a context that can be used by template helper functions -
 	// the renderer does not use it
 	ctx := context.Background()
 
 	// let's render into this buffer - any io.Writer is fine
 	buf := bytes.Buffer{}
 
-	// the name of the template to render
+	// the name of the template to render -
 	// in this example, the name is ignored
 	name := "myTemplate"
 
-	// data provided to the current template being rendered
+	// data provided to the template being rendered
 	data := map[string]interface{}{
 		"who":      "World",
 		"someHTML": "<p>This is HTML</p>",
@@ -103,7 +102,7 @@ func main() {
 	}
 
 	// output buffer contents
-	fmt.Println(buf.String())
+	println(buf.String())
 }
 ```
 
