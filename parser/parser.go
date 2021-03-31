@@ -16,9 +16,9 @@ type Parser struct {
 	infixParseFuncs  map[lexer.TokenType]infixParseFunc
 }
 
-type prefixParseFunc func() (expr ast.Expression, err error)
+type prefixParseFunc func() (ast.Expression, error)
 
-type infixParseFunc func(left ast.Expression, currPrecedence int) (e ast.Expression, ok bool, err error)
+type infixParseFunc func(left ast.Expression, currPrecedence int) (ast.Expression, bool, error)
 
 const (
 	precedenceLowest = iota + 1
@@ -68,11 +68,11 @@ func New(tCh <-chan *lexer.Token, doneCh chan<- struct{}) *Parser {
 
 // Parse reads the sequence of tokens and transforms it into an abstract syntax tree, a program.
 // The tree can be evaluated (executed) by an evaluator.Evaluator.
-func (p *Parser) Parse() (prog *ast.Program, err error) {
+func (p *Parser) Parse() (*ast.Program, error) {
 	defer close(p.doneCh)
 
-	if err = p.initialize(); err != nil {
-		return
+	if err := p.initialize(); err != nil {
+		return nil, err
 	}
 
 	line := p.currToken.Line
@@ -81,28 +81,22 @@ func (p *Parser) Parse() (prog *ast.Program, err error) {
 	var statements []ast.Statement
 
 	for !p.currTokenIs(lexer.EOF) {
-		var s ast.Statement
-		if s, err = p.parseStatement(); err != nil {
-			break
+		s, err := p.parseStatement()
+		if err != nil {
+			return nil, err
 		}
 
 		statements = append(statements, s)
 	}
 
-	if err != nil {
-		return
-	}
-
-	prog = &ast.Program{
+	return &ast.Program{
 		StartLine:  line,
 		StartCol:   col,
 		Statements: statements,
-	}
-
-	return
+	}, nil
 }
 
-func (p *Parser) initialize() (err error) {
+func (p *Parser) initialize() error {
 	p.prefixParseFuncs = map[lexer.TokenType]prefixParseFunc{}
 	p.registerPrefixParseFunc(lexer.Ident, p.parseIdentExpression)
 	p.registerPrefixParseFunc(lexer.Int, p.parseIntLiteral)
@@ -141,26 +135,22 @@ func (p *Parser) initialize() (err error) {
 	p.currToken = &startToken
 	p.nextToken = &startToken
 
-	if err = p.readNextToken(); err != nil {
-		return
+	if err := p.readNextToken(); err != nil {
+		return err
 	}
 
-	if err = p.readNextToken(); err != nil {
-		return
+	if err := p.readNextToken(); err != nil {
+		return err
 	}
 
-	return
+	return nil
 }
 
-func (p *Parser) expectNext(t lexer.TokenType) (err error) {
+func (p *Parser) expectNext(t lexer.TokenType) error {
 	if !p.nextTokenIs(t) {
-		err = newParseErrorf(p.nextToken.Line, p.nextToken.Col, "expected token %s, got %s instead", t, p.nextToken)
-		return
+		return newParseErrorf(p.nextToken.Line, p.nextToken.Col, "expected token %s, got %s instead", t, p.nextToken)
 	}
-
-	err = p.readNextToken()
-
-	return
+	return p.readNextToken()
 }
 
 func (p *Parser) currTokenIs(t lexer.TokenType) bool {
@@ -180,15 +170,15 @@ func (p *Parser) nextTokenIs(t lexer.TokenType) bool {
 	return p.nextToken.Type == t
 }
 
-func (p *Parser) readNextToken() (err error) {
+func (p *Parser) readNextToken() error {
 	if p.currTokenIs(lexer.EOF) {
-		return
+		return nil
 	}
 
 	p.currToken = p.nextToken
 
 	if p.currTokenIs(lexer.EOF) {
-		return
+		return nil
 	}
 
 	p.nextToken = <-p.ch
@@ -201,7 +191,7 @@ func (p *Parser) readNextToken() (err error) {
 		return newParseErrorf(p.nextToken.Line, p.nextToken.Col, "illegal token found: %s", p.nextToken)
 	}
 
-	return
+	return nil
 }
 
 func (p *Parser) registerPrefixParseFunc(t lexer.TokenType, f prefixParseFunc) {
@@ -212,7 +202,7 @@ func (p *Parser) registerInfixParseFunc(t lexer.TokenType, f infixParseFunc) {
 	p.infixParseFuncs[t] = f
 }
 
-func (p *Parser) currPrecedence() (pr int, ok bool) {
-	pr, ok = precedences[p.currToken.Type]
-	return
+func (p *Parser) currPrecedence() (int, bool) {
+	pr, ok := precedences[p.currToken.Type]
+	return pr, ok
 }

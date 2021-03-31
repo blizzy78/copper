@@ -44,36 +44,32 @@ func (s *Scope) Set(name string, v interface{}) {
 }
 
 // HasValue returns whether the scope or any of its parent scopes store a value identified by name.
-func (s *Scope) HasValue(name string) (ok bool) {
+func (s *Scope) HasValue(name string) bool {
 	for {
-		if ok = hasValueSelf(s, name); ok {
-			break
+		if ok := hasValueSelf(s, name); ok {
+			return true
 		}
 
 		if s = s.Parent; s == nil {
-			break
+			return false
 		}
 	}
-
-	return
 }
 
 // Value returns the value identified by name in this scope or any of its parent scopes.
 // If there is a value, ok will be true, otherwise it will be false.
-func (s *Scope) Value(name string) (v interface{}, ok bool) {
+func (s *Scope) Value(name string) (interface{}, bool) {
 	for {
 		if s.values != nil {
-			if v, ok = s.values[name]; ok {
-				break
+			if v, ok := s.values[name]; ok {
+				return v, true
 			}
 		}
 
 		if s = s.Parent; s == nil {
-			break
+			return nil, false
 		}
 	}
-
-	return
 }
 
 // Lock prevents this scope from further modification. Parent scopes (if any) will not be locked.
@@ -96,9 +92,10 @@ func (s *Scope) init() {
 	}
 }
 
-func hasValueSelf(s *Scope, name string) (ok bool) {
-	if s.values != nil {
-		_, ok = s.values[name]
+func hasValueSelf(s *Scope, name string) bool {
+	if s.values == nil {
+		return false
 	}
-	return
+	_, ok := s.values[name]
+	return ok
 }

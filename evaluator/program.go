@@ -5,25 +5,24 @@ import (
 	"github.com/blizzy78/copper/scope"
 )
 
-func (ev *Evaluator) evalProgram(p ast.Program) (o interface{}, err error) {
-	o, err = ev.evalStatements(p.Statements)
-	return
+func (ev *Evaluator) evalProgram(p ast.Program) (interface{}, error) {
+	return ev.evalStatements(p.Statements)
 }
 
-func (ev *Evaluator) evalBlock(b ast.Block) (o interface{}, err error) {
-	var os []interface{}
-	if os, err = ev.evalBlockCaptureAll(b); err != nil {
-		return
+func (ev *Evaluator) evalBlock(b ast.Block) (interface{}, error) {
+	os, err := ev.evalBlockCaptureAll(b)
+	if err != nil {
+		return nil, err
 	}
 
-	if len(os) > 0 {
-		o = os[len(os)-1]
+	if len(os) == 0 {
+		return nil, nil
 	}
 
-	return
+	return os[len(os)-1], nil
 }
 
-func (ev *Evaluator) evalBlockCaptureAll(b ast.Block) (os []interface{}, err error) {
+func (ev *Evaluator) evalBlockCaptureAll(b ast.Block) ([]interface{}, error) {
 	defer func(oldScope *scope.Scope) {
 		ev.scope = oldScope
 	}(ev.scope)
@@ -32,83 +31,80 @@ func (ev *Evaluator) evalBlockCaptureAll(b ast.Block) (os []interface{}, err err
 		Parent: ev.scope,
 	}
 
-	os, err = ev.evalStatementsCaptureAll(b.Statements)
-
-	return
+	return ev.evalStatementsCaptureAll(b.Statements)
 }
 
-func (ev *Evaluator) evalStatements(st []ast.Statement) (o interface{}, err error) {
-	var os []interface{}
-	if os, err = ev.evalStatementsCaptureAll(st); err != nil {
-		return
+func (ev *Evaluator) evalStatements(st []ast.Statement) (interface{}, error) {
+	os, err := ev.evalStatementsCaptureAll(st)
+	if err != nil {
+		return nil, err
 	}
 
-	if len(os) > 0 {
-		o = os[len(os)-1]
+	if len(os) == 0 {
+		return nil, nil
 	}
 
-	return
+	return os[len(os)-1], nil
 }
 
-func (ev *Evaluator) evalStatementsCaptureAll(st []ast.Statement) (os []interface{}, err error) {
-	os = make([]interface{}, len(st))
+func (ev *Evaluator) evalStatementsCaptureAll(st []ast.Statement) ([]interface{}, error) {
+	os := make([]interface{}, len(st))
 
 	for i, st := range st {
-		var o interface{}
-		if o, err = ev.evalStatement(st); err != nil {
-			break
+		o, err := ev.evalStatement(st)
+		if err != nil {
+			return nil, err
 		}
 
 		if ev.breakRequested {
 			if ev.loopLevel <= 0 {
-				err = newEvalErrorf(st.Line(), st.Col(), "break outside of loop")
+				return nil, newEvalErrorf(st.Line(), st.Col(), "break outside of loop")
 			}
-
 			break
 		}
 
 		if ev.continueRequested {
 			if ev.loopLevel <= 0 {
-				err = newEvalErrorf(st.Line(), st.Col(), "continue outside of loop")
+				return nil, newEvalErrorf(st.Line(), st.Col(), "continue outside of loop")
 			}
-
 			break
 		}
 
 		os[i] = o
 	}
 
-	return
+	return os, nil
 }
 
-func (ev *Evaluator) evalStatement(st ast.Statement) (o interface{}, err error) {
+func (ev *Evaluator) evalStatement(st ast.Statement) (interface{}, error) {
 	switch stmt := st.(type) {
 	case *ast.ExpressionStatement:
-		o, err = ev.evalExpressionStatement(*stmt)
+		return ev.evalExpressionStatement(*stmt)
 	case *ast.LetStatement:
-		err = ev.evalLetStatement(*stmt)
+		return nil, ev.evalLetStatement(*stmt)
 	case *ast.BreakStatement:
 		ev.evalBreakStatement()
+		return nil, nil
 	case *ast.ContinueStatement:
 		ev.evalContinueStatement()
+		return nil, nil
 	default:
 		panic(newEvalErrorf(st.Line(), st.Col(), "unknown statement type: %T", st))
 	}
-	return
 }
 
-func (ev *Evaluator) evalExpressionStatement(e ast.ExpressionStatement) (o interface{}, err error) {
-	o, err = ev.eval(e.Expression)
-	return
+func (ev *Evaluator) evalExpressionStatement(e ast.ExpressionStatement) (interface{}, error) {
+	return ev.eval(e.Expression)
 }
 
-func (ev *Evaluator) evalLetStatement(l ast.LetStatement) (err error) {
-	var o interface{}
-	if o, err = ev.eval(l.Expression); err == nil {
-		name := l.Ident.Name
-		ev.scope.Set(name, o)
+func (ev *Evaluator) evalLetStatement(l ast.LetStatement) error {
+	o, err := ev.eval(l.Expression)
+	if err != nil {
+		return err
 	}
-	return
+	name := l.Ident.Name
+	ev.scope.Set(name, o)
+	return nil
 }
 
 func (ev *Evaluator) evalBreakStatement() {

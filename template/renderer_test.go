@@ -22,11 +22,11 @@ func TestRenderer_Render(t *testing.T) {
 	tmpl1 := `hello <% t("tmpl2", { "name": "world " + foo() }) %>!`
 	tmpl2 := `<% safe(name) %>`
 
-	l := LoaderFunc(func(name string) (io.Reader, error) {
+	l := LoaderFunc(func(name string) (io.ReadCloser, error) {
 		if name == "tmpl1" {
-			return strings.NewReader(tmpl1), nil
+			return io.NopCloser(strings.NewReader(tmpl1)), nil
 		}
-		return strings.NewReader(tmpl2), nil
+		return io.NopCloser(strings.NewReader(tmpl2)), nil
 	})
 
 	foo := func(f FooData) string {

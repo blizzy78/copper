@@ -8,93 +8,87 @@ import (
 	"github.com/blizzy78/copper/scope"
 )
 
-func (ev *Evaluator) evalExpression(e ast.Expression) (o interface{}, err error) {
+func (ev *Evaluator) evalExpression(e ast.Expression) (interface{}, error) { //nolint:gocyclo
 	switch ex := e.(type) {
 	case *ast.NilLiteral:
-		o = evalNilLiteral()
+		return evalNilLiteral(), nil
 	case *ast.Literal:
-		o, err = ev.evalLiteral(*ex)
+		return ev.evalLiteral(*ex)
 	case *ast.IntLiteral:
-		o = evalIntLiteral(*ex)
+		return evalIntLiteral(*ex), nil
 	case *ast.BoolLiteral:
-		o = evalBoolLiteral(*ex)
+		return evalBoolLiteral(*ex), nil
 	case *ast.StringLiteral:
-		o = evalStringLiteral(*ex)
+		return evalStringLiteral(*ex), nil
 	case *ast.Ident:
-		o, err = ev.evalIdentExpression(*ex)
+		return ev.evalIdentExpression(*ex)
 	case *ast.PrefixExpression:
-		o, err = ev.evalPrefixExpression(*ex)
+		return ev.evalPrefixExpression(*ex)
 	case *ast.InfixExpression:
-		o, err = ev.evalInfixExpression(*ex)
+		return ev.evalInfixExpression(*ex)
 	case *ast.IfExpression:
-		o, err = ev.evalIfExpression(*ex)
+		return ev.evalIfExpression(*ex)
 	case *ast.FieldExpression:
-		o, err = ev.evalFieldExpression(*ex)
+		return ev.evalFieldExpression(*ex)
 	case *ast.CallExpression:
-		o, err = ev.evalCallExpression(*ex)
+		return ev.evalCallExpression(*ex)
 	case *ast.CaptureExpression:
-		o, err = ev.evalCaptureExpression(*ex)
+		return ev.evalCaptureExpression(*ex)
 	case *ast.ForExpression:
-		o, err = ev.evalForExpression(*ex)
+		return ev.evalForExpression(*ex)
 	case *ast.HashExpression:
-		o, err = ev.evalHashExpression(*ex)
+		return ev.evalHashExpression(*ex)
 	default:
 		panic(newEvalErrorf(e.Line(), e.Col(), "unknown expression type: %T", e))
 	}
-
-	return
 }
 
-func (ev *Evaluator) evalLiteral(l ast.Literal) (o interface{}, err error) {
+func (ev *Evaluator) evalLiteral(l ast.Literal) (interface{}, error) {
 	return ev.literalStringer.String(l.Text)
 }
 
-func (ev *Evaluator) evalIdentExpression(i ast.Ident) (o interface{}, err error) {
+func (ev *Evaluator) evalIdentExpression(i ast.Ident) (interface{}, error) {
 	name := i.Name
-
-	var ok bool
-	if o, ok = ev.scope.Value(name); !ok {
-		err = newEvalErrorf(i.StartLine, i.StartCol, "identifier not found in scope: %s", name)
+	o, ok := ev.scope.Value(name)
+	if !ok {
+		return nil, newEvalErrorf(i.StartLine, i.StartCol, "identifier not found in scope: %s", name)
 	}
-	return
+	return o, nil
 }
 
-func (ev *Evaluator) evalIfExpression(i ast.IfExpression) (o interface{}, err error) {
+func (ev *Evaluator) evalIfExpression(i ast.IfExpression) (interface{}, error) {
 	for _, c := range i.Conditionals {
 		cond := true
 
 		if c.Condition != nil {
-			var v interface{}
-			if v, err = ev.eval(c.Condition); err != nil {
-				return
+			v, err := ev.eval(c.Condition)
+			if err != nil {
+				return nil, err
 			}
 
-			if cond, err = toBool(v); err != nil {
-				err = newEvalErrorf(c.Condition.Line(), c.Condition.Col(), "condition expression type in if expression is not bool: %s", v)
-				return
+			cond, err = toBool(v)
+			if err != nil {
+				return nil, newEvalErrorf(c.Condition.Line(), c.Condition.Col(), "condition expression type in if expression is not bool: %s", v)
 			}
 		}
 
 		if cond {
-			var os []interface{}
-			if os, err = ev.evalBlockCaptureAll(c.Block); err != nil {
-				break
+			os, err := ev.evalBlockCaptureAll(c.Block)
+			if err != nil {
+				return nil, err
 			}
 
-			o = toSingleOrSliceObject(os)
-
-			break
+			return toSingleOrSliceObject(os), nil
 		}
 	}
 
-	return
+	return nil, nil
 }
 
-func (ev *Evaluator) evalForExpression(f ast.ForExpression) (o interface{}, err error) {
+func (ev *Evaluator) evalForExpression(f ast.ForExpression) (interface{}, error) {
 	name := f.Ident.Name
 	if ev.scope.HasValue(name) {
-		err = newEvalErrorf(f.Ident.StartLine, f.Ident.StartCol, "identifier in for statement already in use: %s", name)
-		return
+		return nil, newEvalErrorf(f.Ident.StartLine, f.Ident.StartCol, "identifier in for statement already in use: %s", name)
 	}
 
 	var statusName *string
@@ -103,20 +97,17 @@ func (ev *Evaluator) evalForExpression(f ast.ForExpression) (o interface{}, err 
 	}
 
 	if statusName != nil && ev.scope.HasValue(*statusName) {
-		err = newEvalErrorf(f.Ident.StartLine, f.Ident.StartCol, "status identifier in for statement already in use: %s", *statusName)
-		return
+		return nil, newEvalErrorf(f.Ident.StartLine, f.Ident.StartCol, "status identifier in for statement already in use: %s", *statusName)
 	}
 
-	var r interface{}
-	if r, err = ev.eval(f.RangeExpr); err != nil {
-		return
+	r, err := ev.eval(f.RangeExpr)
+	if err != nil {
+		return nil, err
 	}
 
-	var rg ranger.Ranger
-	var ok bool
-	if rg, ok = r.(ranger.Ranger); !ok {
-		err = newEvalErrorf(f.RangeExpr.Line(), f.RangeExpr.Col(), "range expression in for statement did not produce a ranger.Ranger: %T", r)
-		return
+	rg, ok := r.(ranger.Ranger)
+	if !ok {
+		return nil, newEvalErrorf(f.RangeExpr.Line(), f.RangeExpr.Col(), "range expression in for statement did not produce a ranger.Ranger: %T", r)
 	}
 
 	defer func(oldScope *scope.Scope) {
@@ -142,9 +133,9 @@ func (ev *Evaluator) evalForExpression(f ast.ForExpression) (o interface{}, err 
 			loopScope.Set(*statusName, rg.Status())
 		}
 
-		var loopOs []interface{}
-		if loopOs, err = ev.evalBlockCaptureAll(f.Block); err != nil {
-			break
+		loopOs, err := ev.evalBlockCaptureAll(f.Block)
+		if err != nil {
+			return nil, err
 		}
 
 		os = append(os, loopOs...)
@@ -157,49 +148,40 @@ func (ev *Evaluator) evalForExpression(f ast.ForExpression) (o interface{}, err 
 		ev.continueRequested = false
 	}
 
-	if err != nil {
-		return
-	}
-
-	o = toSingleOrSliceObject(os)
-
-	return
+	return toSingleOrSliceObject(os), nil
 }
 
-func (ev *Evaluator) evalCallExpression(c ast.CallExpression) (o interface{}, err error) {
-	var f interface{}
-	if f, err = ev.eval(c.Callee); err != nil {
-		return
+func (ev *Evaluator) evalCallExpression(c ast.CallExpression) (interface{}, error) {
+	f, err := ev.eval(c.Callee)
+	if err != nil {
+		return nil, err
 	}
 
 	fValue := reflect.ValueOf(f)
 	if fValue.Kind() != reflect.Func {
-		err = newEvalErrorf(c.Callee.Line(), c.Callee.Col(), "callee expression in call expression is not a function: %T", f)
-		return
+		return nil, newEvalErrorf(c.Callee.Line(), c.Callee.Col(), "callee expression in call expression is not a function: %T", f)
 	}
 
 	fValueType := fValue.Type()
 	numExpectedParams := fValueType.NumIn()
 
 	if len(c.Params) > numExpectedParams {
-		err = newEvalErrorf(c.StartLine, c.StartCol, "too many arguments for function call")
-		return
+		return nil, newEvalErrorf(c.StartLine, c.StartCol, "too many arguments for function call")
 	}
 
 	params := []reflect.Value{}
 
 	for i, e := range c.Params {
-		var po interface{}
-		if po, err = ev.eval(e); err != nil {
-			break
+		po, err := ev.eval(e)
+		if err != nil {
+			return nil, err
 		}
 
 		pType := fValueType.In(i)
 		if po != nil {
 			pValue := reflect.ValueOf(po)
 			if !pValue.Type().ConvertibleTo(pType) {
-				err = newEvalErrorf(e.Line(), e.Col(), "cannot convert argument of type %T to required type %s", po, pType)
-				break
+				return nil, newEvalErrorf(e.Line(), e.Col(), "cannot convert argument of type %T to required type %s", po, pType)
 			}
 
 			pValue = pValue.Convert(pType)
@@ -210,92 +192,74 @@ func (ev *Evaluator) evalCallExpression(c ast.CallExpression) (o interface{}, er
 		}
 	}
 
-	if err != nil {
-		return
-	}
-
 	for i := len(c.Params); i < numExpectedParams; i++ {
 		pType := fValueType.In(i)
-
-		var v interface{}
+		ok := false
 		for _, ra := range ev.argumentResolvers {
-			if v, err = ra.Resolve(pType); v != nil || err != nil {
-				break
+			v, err := ra.Resolve(pType)
+			if err != nil {
+				return nil, err
 			}
-		}
+			if v == nil {
+				continue
+			}
 
-		if err != nil {
-			break
-		}
-
-		if v != nil {
 			vValue := reflect.ValueOf(v)
 			pValue := vValue.Convert(pType)
 			params = append(params, pValue)
-		} else {
-			nilValue := reflect.New(pType).Elem()
-			params = append(params, nilValue)
+			ok = true
+			break
 		}
-	}
 
-	if err != nil {
-		return
+		if !ok {
+			return nil, newEvalErrorf(c.StartLine, c.StartCol, "cannot resolve argument #%d for function call: %s", i+1, pType.Name())
+		}
 	}
 
 	if len(params) != numExpectedParams {
-		err = newEvalErrorf(c.StartLine, c.StartCol, "not enough arguments for function call")
-		return
+		return nil, newEvalErrorf(c.StartLine, c.StartCol, "not enough arguments for function call")
 	}
 
 	rs := fValue.Call(params)
+	if len(rs) == 0 {
+		return nil, nil
+	}
 
-	if len(rs) > 0 {
-		lastR := rs[len(rs)-1].Interface()
-		if lastR != nil {
-			if lastErr, ok := lastR.(error); ok {
-				err = lastErr
-				return
-			}
+	lastR := rs[len(rs)-1].Interface()
+	if lastR != nil {
+		if lastErr, ok := lastR.(error); ok {
+			return nil, lastErr
 		}
-
-		o = rs[0].Interface()
 	}
 
-	return
+	return rs[0].Interface(), nil
 }
 
-func (ev *Evaluator) evalCaptureExpression(c ast.CaptureExpression) (o interface{}, err error) {
-	var os []interface{}
-	if os, err = ev.evalBlockCaptureAll(c.Block); err == nil {
-		o = toSingleOrSliceObject(os)
+func (ev *Evaluator) evalCaptureExpression(c ast.CaptureExpression) (interface{}, error) {
+	os, err := ev.evalBlockCaptureAll(c.Block)
+	if err != nil {
+		return nil, err
 	}
-	return
+	return toSingleOrSliceObject(os), nil
 }
 
-func (ev *Evaluator) evalHashExpression(h ast.HashExpression) (o interface{}, err error) {
+func (ev *Evaluator) evalHashExpression(h ast.HashExpression) (interface{}, error) {
 	values := map[string]interface{}{}
 
 	for key, expr := range h.Values {
 		if _, ok := values[key]; ok {
-			err = newEvalErrorf(h.StartLine, h.StartCol, "duplicate key in hash expression: %s", key)
-			break
+			return nil, newEvalErrorf(h.StartLine, h.StartCol, "duplicate key in hash expression: %s", key)
 		}
 
-		var v interface{}
-		if v, err = ev.eval(expr); err != nil {
-			break
+		v, err := ev.eval(expr)
+		if err != nil {
+			return nil, err
 		}
 
 		values[key] = v
 	}
 
-	if err != nil {
-		return
-	}
-
-	o = values
-
-	return
+	return values, nil
 }
 
 func defaultLiteral(s string) (interface{}, error) {
@@ -306,11 +270,12 @@ func defaultResolve(t reflect.Type) (interface{}, error) {
 	return nil, nil
 }
 
-func toSingleOrSliceObject(objs []interface{}) (s interface{}) {
-	if len(objs) > 1 {
-		s = objs
-	} else if len(objs) == 1 {
-		s = objs[0]
+func toSingleOrSliceObject(os []interface{}) interface{} {
+	if len(os) > 1 {
+		return os
 	}
-	return
+	if len(os) == 1 {
+		return os[0]
+	}
+	return nil
 }

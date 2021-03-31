@@ -25,15 +25,15 @@ type Renderer struct {
 
 // A Loader loads a template with a specific name and returns it as a reader.
 type Loader interface {
-	Load(name string) (r io.Reader, err error)
+	Load(name string) (io.ReadCloser, error)
 }
 
 // A LoaderFunc is an adapter type that allows ordinary functions to be used as Loaders.
 // If f is a function with the appropriate signature, LoaderFunc(f) is a loader that calls f.
-type LoaderFunc func(name string) (r io.Reader, err error)
+type LoaderFunc func(name string) (io.ReadCloser, error)
 
 // Opt is the type of a function that configures r.
-type Opt func(r *Renderer)
+type Opt func(*Renderer)
 
 // SafeString encapsulates a regular string to mark it as safe for output.
 // If template code tries to output a regular string, it will be rendered only as "!UNSAFE!".
@@ -109,7 +109,7 @@ func WithTemplateFuncName(n string) Opt {
 //
 // The context is passed to an internal evaluator.ArgumentResolver and can therefore be resolved automatically
 // as an argument to method or function calls in template code.
-func (r *Renderer) Render(ctx context.Context, w io.Writer, name string, data map[string]interface{}) (err error) {
+func (r *Renderer) Render(ctx context.Context, w io.Writer, name string, data map[string]interface{}) error {
 	userScope := scope.Scope{}
 
 	if r.scopeData != nil {
@@ -119,8 +119,7 @@ func (r *Renderer) Render(ctx context.Context, w io.Writer, name string, data ma
 	}
 
 	if userScope.HasValue(r.templateFuncName) {
-		err = fmt.Errorf("cannot use template function name, identifer already in use: %s", r.templateFuncName)
-		return
+		return fmt.Errorf("cannot use template function name, identifer already in use: %s", r.templateFuncName)
 	}
 
 	userScope.Lock()
@@ -129,29 +128,29 @@ func (r *Renderer) Render(ctx context.Context, w io.Writer, name string, data ma
 		Parent: &userScope,
 	}
 
-	renderTemplateFunc := func(name string, data map[string]interface{}, ctx context.Context) (s SafeString, err error) {
+	renderTemplateFunc := func(name string, data map[string]interface{}, ctx context.Context) (SafeString, error) {
 		buf := bytes.Buffer{}
-		if err = r.Render(ctx, &buf, name, data); err != nil {
-			return
+		if err := r.Render(ctx, &buf, name, data); err != nil {
+			return "", err
 		}
-		s = SafeString(buf.String())
-		return
+		return SafeString(buf.String()), nil
 	}
 
 	rendererScope.Set(r.templateFuncName, renderTemplateFunc)
 
 	rendererScope.Lock()
 
-	var rd io.Reader
-	if rd, err = r.loader.Load(name); err != nil {
-		return
+	rd, err := r.loader.Load(name)
+	if err != nil {
+		return err
 	}
+	defer rd.Close()
 
 	ls := evaluator.LiteralStringerFunc(func(s string) (interface{}, error) {
 		return SafeString(s), nil
 	})
 
-	ra := evaluator.ArgumentResolverFunc(func(t reflect.Type) (v interface{}, err error) {
+	ra := evaluator.ArgumentResolverFunc(func(t reflect.Type) (interface{}, error) {
 		return resolveContext(t, ctx)
 	})
 
@@ -163,18 +162,18 @@ func (r *Renderer) Render(ctx context.Context, w io.Writer, name string, data ma
 	}
 
 	if err = Render(rd, w, data, &rendererScope, evaluatorOpts...); err != nil {
-		err = fmt.Errorf("error rendering template %s: %w", name, err)
+		return fmt.Errorf("error rendering template %s: %w", name, err)
 	}
 
-	return
+	return nil
 }
 
 // Render loads a template from r, evaluates it using scope s, optionally passing additional data,
 // and writes the output to w.
-func Render(r io.Reader, w io.Writer, data map[string]interface{}, s *scope.Scope, evaluatorOpts ...evaluator.Opt) (err error) {
+func Render(r io.Reader, w io.Writer, data map[string]interface{}, s *scope.Scope, evaluatorOpts ...evaluator.Opt) error {
 	templateScope := newTemplateScope(data, s)
 
-	ra := evaluator.ArgumentResolverFunc(func(t reflect.Type) (v interface{}, err error) {
+	ra := evaluator.ArgumentResolverFunc(func(t reflect.Type) (interface{}, error) {
 		return resolveScope(t, templateScope)
 	})
 
@@ -184,22 +183,20 @@ func Render(r io.Reader, w io.Writer, data map[string]interface{}, s *scope.Scop
 		newEvaluatorOpts[1+i] = evaluatorOpts[i]
 	}
 
-	var o interface{}
-	if o, err = render(r, templateScope, newEvaluatorOpts...); err != nil {
-		return
+	o, err := render(r, templateScope, newEvaluatorOpts...)
+	if err != nil {
+		return err
 	}
 
-	err = write(w, o)
-
-	return
+	return write(w, o)
 }
 
 func (s SafeString) String() string {
 	return string(s)
 }
 
-func newTemplateScope(data map[string]interface{}, parent *scope.Scope) (s *scope.Scope) {
-	s = &scope.Scope{
+func newTemplateScope(data map[string]interface{}, parent *scope.Scope) *scope.Scope {
+	s := scope.Scope{
 		Parent: parent,
 	}
 
@@ -209,17 +206,17 @@ func newTemplateScope(data map[string]interface{}, parent *scope.Scope) (s *scop
 		}
 	}
 
-	return
+	return &s
 }
 
-func render(r io.Reader, s *scope.Scope, evaluatorOpts ...evaluator.Opt) (o interface{}, err error) {
+func render(r io.Reader, s *scope.Scope, evaluatorOpts ...evaluator.Opt) (interface{}, error) {
 	l := lexer.New(r)
 	tCh, doneCh := l.Tokens()
 
 	p := parser.New(tCh, doneCh)
-	var prog *ast.Program
-	if prog, err = p.Parse(); err != nil {
-		return
+	prog, err := p.Parse()
+	if err != nil {
+		return nil, err
 	}
 
 	// wrap capture around the original statements to capture all output
@@ -247,61 +244,60 @@ func capture(statements []ast.Statement) ast.Statement {
 	}
 }
 
-func resolveContext(t reflect.Type, ctx context.Context) (v interface{}, err error) {
-	if reflect.ValueOf(ctx).Type().ConvertibleTo(t) {
-		v = ctx
+func resolveContext(t reflect.Type, ctx context.Context) (interface{}, error) {
+	if !reflect.ValueOf(ctx).Type().ConvertibleTo(t) {
+		return nil, nil
 	}
-	return
+	return ctx, nil
 }
 
-func resolveScope(t reflect.Type, s *scope.Scope) (v interface{}, err error) {
-	if reflect.ValueOf(s).Type().ConvertibleTo(t) {
-		v = s
+func resolveScope(t reflect.Type, s *scope.Scope) (interface{}, error) {
+	if !reflect.ValueOf(s).Type().ConvertibleTo(t) {
+		return nil, nil
 	}
-	return
+	return s, nil
 }
 
-func write(w io.Writer, o interface{}) (err error) {
+func write(w io.Writer, o interface{}) error {
 	if sl, ok := o.([]interface{}); ok {
 		for _, el := range sl {
-			if err = writeSingle(w, el); err != nil {
-				break
+			if err := writeSingle(w, el); err != nil {
+				return err
 			}
 		}
-	} else {
-		err = writeSingle(w, o)
+		return nil
 	}
-	return
+	return writeSingle(w, o)
 }
 
-func writeSingle(w io.Writer, o interface{}) (err error) {
+func writeSingle(w io.Writer, o interface{}) error {
 	s := expectSafe(o)
-	_, err = w.Write([]byte(s))
-	return
+	_, err := w.Write([]byte(s))
+	return err
 }
 
-func expectSafe(v interface{}) (s string) {
+func expectSafe(v interface{}) string {
 	switch value := v.(type) {
 	case nil:
-		s = ""
+		return ""
 	case SafeString:
-		s = value.String()
+		return value.String()
 	case []interface{}:
 		buf := strings.Builder{}
 		for _, el := range value {
 			buf.WriteString(expectSafe(el))
 		}
-		s = buf.String()
+		return buf.String()
 	case string:
 		if value != "" {
-			s = "!UNSAFE!"
+			return "!UNSAFE!"
 		}
 	default:
-		s = "!UNSAFE!"
+		return "!UNSAFE!"
 	}
-	return
+	return ""
 }
 
-func (l LoaderFunc) Load(name string) (r io.Reader, err error) {
+func (l LoaderFunc) Load(name string) (io.ReadCloser, error) {
 	return l(name)
 }

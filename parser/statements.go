@@ -5,102 +5,92 @@ import (
 	"github.com/blizzy78/copper/lexer"
 )
 
-func (p *Parser) parseStatement() (s ast.Statement, err error) {
+func (p *Parser) parseStatement() (ast.Statement, error) {
 	switch p.currToken.Type {
 	case lexer.Let:
-		s, err = p.parseLetStatement()
+		return p.parseLetStatement()
 	case lexer.Break:
-		s, err = p.parseBreakStatement()
+		return p.parseBreakStatement()
 	case lexer.Continue:
-		s, err = p.parseContinueStatement()
+		return p.parseContinueStatement()
 	default:
-		s, err = p.parseExpressionStatement()
+		return p.parseExpressionStatement()
 	}
-
-	return
 }
 
-func (p *Parser) parseLetStatement() (s *ast.LetStatement, err error) {
+func (p *Parser) parseLetStatement() (*ast.LetStatement, error) {
 	line := p.currToken.Line
 	col := p.currToken.Col
 
-	if err = p.expectNext(lexer.Ident); err != nil {
-		return
+	if err := p.expectNext(lexer.Ident); err != nil {
+		return nil, err
 	}
 
 	name := p.currToken.Literal
 
-	if err = p.expectNext(lexer.Assign); err != nil {
-		return
+	if err := p.expectNext(lexer.Assign); err != nil {
+		return nil, err
 	}
 
-	if err = p.readNextToken(); err != nil {
-		return
+	if err := p.readNextToken(); err != nil {
+		return nil, err
 	}
 
-	var expr ast.Expression
-	if expr, err = p.parseExpression(precedenceLowest); err != nil {
-		return
+	expr, err := p.parseExpression(precedenceLowest)
+	if err != nil {
+		return nil, err
 	}
 
-	s = &ast.LetStatement{
+	return &ast.LetStatement{
 		Ident: ast.Ident{
 			StartLine: line,
 			StartCol:  col,
 			Name:      name,
 		},
 		Expression: expr,
-	}
-
-	return
+	}, nil
 }
 
-func (p *Parser) parseBreakStatement() (s *ast.BreakStatement, err error) {
+func (p *Parser) parseBreakStatement() (*ast.BreakStatement, error) {
 	line := p.currToken.Line
 	col := p.currToken.Col
 
-	if err = p.readNextToken(); err != nil {
-		return
+	if err := p.readNextToken(); err != nil {
+		return nil, err
 	}
 
-	s = &ast.BreakStatement{
+	return &ast.BreakStatement{
 		StartLine: line,
 		StartCol:  col,
-	}
-
-	return
+	}, nil
 }
 
-func (p *Parser) parseContinueStatement() (s *ast.ContinueStatement, err error) {
+func (p *Parser) parseContinueStatement() (*ast.ContinueStatement, error) {
 	line := p.currToken.Line
 	col := p.currToken.Col
 
-	if err = p.readNextToken(); err != nil {
-		return
+	if err := p.readNextToken(); err != nil {
+		return nil, err
 	}
 
-	s = &ast.ContinueStatement{
+	return &ast.ContinueStatement{
 		StartLine: line,
 		StartCol:  col,
-	}
-
-	return
+	}, nil
 }
 
-func (p *Parser) parseExpressionStatement() (s *ast.ExpressionStatement, err error) {
+func (p *Parser) parseExpressionStatement() (*ast.ExpressionStatement, error) {
 	line := p.currToken.Line
 	col := p.currToken.Col
 
-	var expr ast.Expression
-	if expr, err = p.parseExpression(precedenceLowest); err != nil {
-		return
+	expr, err := p.parseExpression(precedenceLowest)
+	if err != nil {
+		return nil, err
 	}
 
-	s = &ast.ExpressionStatement{
+	return &ast.ExpressionStatement{
 		StartLine:  line,
 		StartCol:   col,
 		Expression: expr,
-	}
-
-	return
+	}, nil
 }

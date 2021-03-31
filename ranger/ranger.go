@@ -9,7 +9,7 @@ import (
 // Ranger iterates over a set of values and returns the current value for each iteration.
 type Ranger interface {
 	// Next advances the ranger to the next value in the set. It returns whether it was successful in advancing.
-	Next() (ok bool)
+	Next() bool
 
 	// Value returns the current value in the set. Value panics if Next has not been called or if
 	// there are no more values.
@@ -92,18 +92,22 @@ func NewFromTo(minInclusive int, maxInclusive int) Ranger {
 	return NewInt(minInclusive, maxInclusive+1)
 }
 
-func (i *intRanger) Next() (ok bool) {
+// Next implements Ranger.
+func (i *intRanger) Next() bool {
 	c := i.current + 1
-	if ok = c < i.maxExclusive; ok {
-		i.current = c
+	if c >= i.maxExclusive {
+		return false
 	}
-	return
+	i.current = c
+	return true
 }
 
-func (i *intRanger) Value() (v interface{}) {
+// Value implements Ranger.
+func (i *intRanger) Value() interface{} {
 	return i.current
 }
 
+// Status implements Ranger.
 func (i *intRanger) Status() Status {
 	index := i.current - i.minInclusive
 	lastIndex := i.maxExclusive - i.minInclusive - 1
@@ -118,18 +122,22 @@ func (i *intRanger) Status() Status {
 	}
 }
 
-func (s *sliceRanger) Next() (ok bool) {
+// Next implements Ranger.
+func (s *sliceRanger) Next() bool {
 	i := s.index + 1
-	if ok = i < len(s.s); ok {
-		s.index = i
+	if i >= len(s.s) {
+		return false
 	}
-	return
+	s.index = i
+	return true
 }
 
-func (s *sliceRanger) Value() (v interface{}) {
+// Value implements Ranger.
+func (s *sliceRanger) Value() interface{} {
 	return s.s[s.index]
 }
 
+// Status implements Ranger.
 func (s *sliceRanger) Status() Status {
 	even := s.index%2 == 0
 	lastIndex := len(s.s) - 1
@@ -143,15 +151,18 @@ func (s *sliceRanger) Status() Status {
 	}
 }
 
-func (h *hashRanger) Next() (ok bool) {
+// Next implements Ranger.
+func (h *hashRanger) Next() bool {
 	i := h.index + 1
-	if ok = i < len(h.keys); ok {
-		h.index = i
+	if i >= len(h.keys) {
+		return false
 	}
-	return
+	h.index = i
+	return true
 }
 
-func (h *hashRanger) Value() (v interface{}) {
+// Value implements Ranger.
+func (h *hashRanger) Value() interface{} {
 	k := h.keys[h.index]
 	return HashEntry{
 		Key:   k,
@@ -159,6 +170,7 @@ func (h *hashRanger) Value() (v interface{}) {
 	}
 }
 
+// Status implements Ranger.
 func (h *hashRanger) Status() Status {
 	lastIndex := len(h.keys) - 1
 	even := h.index%2 == 0
@@ -182,27 +194,23 @@ func keys(h map[string]interface{}) []string {
 	return keys
 }
 
-func toSlice(v interface{}) (s []interface{}, err error) {
+func toSlice(v interface{}) ([]interface{}, error) {
 	if v == nil {
-		err = errors.New("cannot convert nil to slice")
-		return
+		return nil, errors.New("cannot convert nil to slice")
 	}
 
 	value := reflect.ValueOf(v)
 
 	switch value.Kind() {
-	case reflect.Array:
-		fallthrough
-	case reflect.Slice:
+	case reflect.Array, reflect.Slice:
 		l := value.Len()
-		s = make([]interface{}, l)
+		s := make([]interface{}, l)
 		for i := 0; i < l; i++ {
 			s[i] = value.Index(i).Interface()
 		}
+		return s, nil
 
 	default:
-		err = fmt.Errorf("cannot convert unsupported type to slice: %T", v)
+		return nil, fmt.Errorf("cannot convert unsupported type to slice: %T", v)
 	}
-
-	return
 }

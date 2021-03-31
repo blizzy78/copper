@@ -10,8 +10,9 @@ import (
 
 	"github.com/blizzy78/copper/scope"
 	"github.com/blizzy78/copper/template"
-	"github.com/gobuffalo/nulls"
 )
+
+var errUnsupportedTypeOrNil = errors.New("unsupported type or nil")
 
 // Safe converts v to a string and returns it as a safe string.
 func Safe(v interface{}) template.SafeString {
@@ -24,23 +25,19 @@ func HTML(v interface{}) template.SafeString {
 	return template.SafeString(html.EscapeString(toString(v)))
 }
 
-// Len returns the length of v. If v is a string, slice, or array, it returns v's length.
+// Len returns the length of v. If v is a string, slice, or array, it returns len(v).
 // Len panics if v is neither of those types, or if v is nil.
 func Len(v interface{}) int {
 	if v == nil {
-		panic(errors.New("cannot get length of nil"))
+		panic(errUnsupportedTypeOrNil)
 	}
 
 	value := reflect.ValueOf(v)
 	switch value.Kind() {
-	case reflect.Array:
-		fallthrough
-	case reflect.String:
-		fallthrough
-	case reflect.Slice:
+	case reflect.String, reflect.Slice, reflect.Array:
 		return value.Len()
 	default:
-		panic(fmt.Errorf("cannot get length of unsupported type: %T", v))
+		panic(errUnsupportedTypeOrNil)
 	}
 }
 
@@ -60,86 +57,54 @@ func HasSuffix(s string, w string) bool {
 	return strings.HasSuffix(s, w)
 }
 
-func toString(v interface{}) (s string) {
-	if str, ok := v.(fmt.Stringer); ok {
-		return str.String()
+func toString(v interface{}) string { //nolint:gocyclo
+	if s, ok := v.(fmt.Stringer); ok {
+		return s.String()
 	}
-
-	var ok bool
 
 	switch value := v.(type) {
 	case nil:
-		ok = true
+		return ""
 	case string:
-		s = value
-		ok = true
+		return value
 	case bool:
-		if value {
-			s = "true"
-		} else {
-			s = "false"
+		if !value {
+			return "false"
 		}
-		ok = true
+		return "true"
 	case int:
-		s = strconv.FormatInt(int64(value), 10)
-		ok = true
+		return strconv.FormatInt(int64(value), 10)
 	case int8:
-		s = strconv.FormatInt(int64(value), 10)
-		ok = true
+		return strconv.FormatInt(int64(value), 10)
 	case int16:
-		s = strconv.FormatInt(int64(value), 10)
-		ok = true
+		return strconv.FormatInt(int64(value), 10)
 	case int32:
-		s = strconv.FormatInt(int64(value), 10)
-		ok = true
+		return strconv.FormatInt(int64(value), 10)
 	case int64:
-		s = strconv.FormatInt(value, 10)
-		ok = true
+		return strconv.FormatInt(value, 10)
 	case uint:
-		s = strconv.FormatUint(uint64(value), 10)
-		ok = true
+		return strconv.FormatUint(uint64(value), 10)
 	case uint8:
-		s = strconv.FormatUint(uint64(value), 10)
-		ok = true
+		return strconv.FormatUint(uint64(value), 10)
 	case uint16:
-		s = strconv.FormatUint(uint64(value), 10)
-		ok = true
+		return strconv.FormatUint(uint64(value), 10)
 	case uint32:
-		s = strconv.FormatUint(uint64(value), 10)
-		ok = true
+		return strconv.FormatUint(uint64(value), 10)
 	case uint64:
-		s = strconv.FormatUint(value, 10)
-		ok = true
+		return strconv.FormatUint(value, 10)
 	case []interface{}:
 		buf := strings.Builder{}
 		for _, el := range value {
-			es := toString(el)
-			buf.WriteString(es)
+			_, _ = buf.WriteString(toString(el))
 		}
-		s = buf.String()
-		ok = true
+		return buf.String()
 	case []string:
 		buf := strings.Builder{}
 		for _, es := range value {
 			buf.WriteString(es)
 		}
-		s = buf.String()
-		ok = true
-	case nulls.String:
-		if value.Valid {
-			s = value.String
-		}
-		ok = true
-	case nulls.Int64:
-		if value.Valid {
-			s = strconv.FormatInt(value.Int64, 10)
-		}
-		ok = true
+		return buf.String()
+	default:
+		return fmt.Sprintf("[?TYPE? %T]", v)
 	}
-
-	if !ok {
-		s = fmt.Sprintf("[?TYPE? %T]", v)
-	}
-
-	return
 }

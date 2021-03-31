@@ -422,7 +422,7 @@ loop:
 	}
 }
 
-func newLexerString(s string, tb testing.TB, opts ...Opt) (l *Lexer) {
+func newLexerString(s string, tb testing.TB, opts ...Opt) *Lexer {
 	tb.Helper()
 
 	r := bytes.NewReader([]byte(s))

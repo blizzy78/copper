@@ -581,24 +581,24 @@ func testObject(i int, actual interface{}, expected interface{}, t *testing.T) {
 	}
 }
 
-func mustToInt64(v interface{}) (i int64) {
-	i, _ = toInt64(v)
-	return
+func mustToInt64(v interface{}) int64 {
+	i, _ := toInt64(v)
+	return i
 }
 
-func mustToBool(v interface{}) (b bool) {
-	b, _ = toBool(v)
-	return
+func mustToBool(v interface{}) bool {
+	b, _ := toBool(v)
+	return b
 }
 
-func mustToString(v interface{}) (s string) {
-	s, _ = toString(v)
-	return
+func mustToString(v interface{}) string {
+	s, _ := toString(v)
+	return s
 }
 
-func mustToSlice(v interface{}) (s []interface{}) {
-	s, _ = toSlice(v)
-	return
+func mustToSlice(v interface{}) []interface{} {
+	s, _ := toSlice(v)
+	return s
 }
 
 func testIntObject(i int, actual interface{}, expected int64, t *testing.T) {
@@ -651,22 +651,22 @@ func testScopeValue(i int, s *scope.Scope, name string, expected interface{}, t 
 	}
 }
 
-func evalWithScope(i int, input string, s *scope.Scope, t *testing.T, lexerOpts ...lexer.Opt) (o interface{}) {
+func evalWithScope(i int, input string, s *scope.Scope, t *testing.T, lexerOpts ...lexer.Opt) interface{} {
 	t.Helper()
 
 	prog := parse(i, input, t, lexerOpts...)
 
 	ev := New()
 
-	var err error
-	if o, err = ev.Eval(prog, s); err != nil {
+	o, err := ev.Eval(prog, s)
+	if err != nil {
 		t.Fatalf("[%d] error evaluating expression: %v", i, err)
 	}
 
-	return
+	return o
 }
 
-func evalExpr(i int, input string, t *testing.T, lexerOpts ...lexer.Opt) (o interface{}) {
+func evalExpr(i int, input string, t *testing.T, lexerOpts ...lexer.Opt) interface{} {
 	t.Helper()
 
 	prog := parse(i, input, t, lexerOpts...)
@@ -674,15 +674,15 @@ func evalExpr(i int, input string, t *testing.T, lexerOpts ...lexer.Opt) (o inte
 
 	ev := New()
 
-	var err error
-	if o, err = ev.Eval(expr, &scope.Scope{}); err != nil {
+	o, err := ev.Eval(expr, &scope.Scope{})
+	if err != nil {
 		t.Fatalf("[%d] error evaluating expression: %v", i, err)
 	}
 
-	return
+	return o
 }
 
-func parse(i int, input string, t *testing.T, lexerOpts ...lexer.Opt) (prog *ast.Program) {
+func parse(i int, input string, t *testing.T, lexerOpts ...lexer.Opt) *ast.Program {
 	t.Helper()
 
 	l := newLexerString(input, t, lexerOpts...)
@@ -690,16 +690,15 @@ func parse(i int, input string, t *testing.T, lexerOpts ...lexer.Opt) (prog *ast
 	tCh, doneCh := l.Tokens()
 
 	p := parser.New(tCh, doneCh)
-	var err error
-	if prog, err = p.Parse(); err != nil {
+	prog, err := p.Parse()
+	if err != nil {
 		t.Fatalf("[%d] error parsing program: %v", i, err)
 	}
 
-	return
-
+	return prog
 }
 
-func newLexerString(s string, t *testing.T, opts ...lexer.Opt) (l *lexer.Lexer) {
+func newLexerString(s string, t *testing.T, opts ...lexer.Opt) *lexer.Lexer {
 	t.Helper()
 
 	r := bytes.NewReader([]byte(s))

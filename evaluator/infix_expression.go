@@ -6,162 +6,151 @@ import (
 	"github.com/blizzy78/copper/ast"
 )
 
-func (ev *Evaluator) evalInfixExpression(i ast.InfixExpression) (o interface{}, err error) {
-	var left interface{}
-	if left, err = ev.eval(i.Left); err != nil {
-		return
+func (ev *Evaluator) evalInfixExpression(i ast.InfixExpression) (interface{}, error) {
+	left, err := ev.eval(i.Left)
+	if err != nil {
+		return nil, err
 	}
 	leftKind := reflect.ValueOf(left).Kind()
 
 	// short-circuit expressions like "falsy && ..."
 	if left != nil && leftKind == reflect.Bool && i.Operator == "&&" {
-		var l bool
-		l, err = toBool(left)
+		l, err := toBool(left)
 		if err != nil {
-			return
+			return nil, err
 		}
 		if !l {
-			o = false
-			return
+			return false, nil
 		}
 	}
 
 	// short-circuit expressions like "truthy || ..."
 	if left != nil && leftKind == reflect.Bool && i.Operator == "||" {
-		var l bool
-		l, err = toBool(left)
+		l, err := toBool(left)
 		if err != nil {
-			return
+			return nil, err
 		}
 		if l {
-			o = true
-			return
+			return true, nil
 		}
 	}
 
-	var right interface{}
-	if right, err = ev.eval(i.Right); err != nil {
-		return
+	right, err := ev.eval(i.Right)
+	if err != nil {
+		return nil, err
 	}
 	rightKind := reflect.ValueOf(right).Kind()
 
 	switch {
 	case left != nil && right != nil && leftKind == reflect.String && rightKind == reflect.String:
-		var l string
-		if l, err = toString(left); err != nil {
-			return
+		l, err := toString(left)
+		if err != nil {
+			return nil, err
 		}
 
-		var r string
-		if r, err = toString(right); err != nil {
-			return
+		r, err := toString(right)
+		if err != nil {
+			return nil, err
 		}
 
-		o, err = evalStringInfixExpression(l, r, i.Operator, i.StartLine, i.StartCol)
+		return evalStringInfixExpression(l, r, i.Operator, i.StartLine, i.StartCol)
 
 	case left != nil && right != nil && leftKind == reflect.Int64 && rightKind == reflect.Int64:
-		var l int64
-		if l, err = toInt64(left); err != nil {
-			return
+		l, err := toInt64(left)
+		if err != nil {
+			return nil, err
 		}
 
-		var r int64
-		if r, err = toInt64(right); err != nil {
-			return
+		r, err := toInt64(right)
+		if err != nil {
+			return nil, err
 		}
 
-		o, err = evalIntInfixExpression(l, r, i.Operator, i.StartLine, i.StartCol)
+		return evalIntInfixExpression(l, r, i.Operator, i.StartLine, i.StartCol)
 
 	case left != nil && right != nil && leftKind == reflect.Bool && rightKind == reflect.Bool:
-		var l bool
-		if l, err = toBool(left); err != nil {
-			return
+		l, err := toBool(left)
+		if err != nil {
+			return nil, err
 		}
 
-		var r bool
-		if r, err = toBool(right); err != nil {
-			return
+		r, err := toBool(right)
+		if err != nil {
+			return nil, err
 		}
 
-		o, err = evalBoolInfixExpression(l, r, i.Operator, i.StartLine, i.StartCol)
+		return evalBoolInfixExpression(l, r, i.Operator, i.StartLine, i.StartCol)
 
 	default:
-		err = newEvalErrorf(i.StartLine, i.StartCol, "cannot handle expression types in '%s' infix expression: %T vs %T", i.Operator, left, right)
+		return nil, newEvalErrorf(i.StartLine, i.StartCol, "cannot handle expression types in '%s' infix expression: %T vs %T", i.Operator, left, right)
 	}
-
-	return
 }
 
-func evalBoolInfixExpression(l bool, r bool, op string, line int, col int) (o interface{}, err error) {
+func evalBoolInfixExpression(l bool, r bool, op string, line int, col int) (interface{}, error) {
 	switch op {
 	case "==":
-		o = l == r
+		return l == r, nil
 	case "!=":
-		o = l != r
+		return l != r, nil
 	case "||":
-		o = l || r
+		return l || r, nil
 	case "&&":
-		o = l && r
+		return l && r, nil
 	default:
-		err = newEvalErrorf(line, col, "unexpected operator in bool infix expression: %s", op)
+		return nil, newEvalErrorf(line, col, "unexpected operator in bool infix expression: %s", op)
 	}
-	return
 }
 
-func evalIntInfixExpression(l int64, r int64, op string, line int, col int) (o interface{}, err error) {
+func evalIntInfixExpression(l int64, r int64, op string, line int, col int) (interface{}, error) { //nolint:gocyclo
 	switch op {
 	case "==":
-		o = l == r
+		return l == r, nil
 	case "!=":
-		o = l != r
+		return l != r, nil
 	case "<":
-		o = l < r
+		return l < r, nil
 	case "<=":
-		o = l <= r
+		return l <= r, nil
 	case ">":
-		o = l > r
+		return l > r, nil
 	case ">=":
-		o = l >= r
+		return l >= r, nil
 	case "+":
-		o = l + r
+		return l + r, nil
 	case "-":
-		o = l - r
+		return l - r, nil
 	case "*":
-		o = l * r
+		return l * r, nil
 	case "/":
-		if r != 0 {
-			o = l / r
-		} else {
-			err = newEvalErrorf(line, col, "division by zero")
+		if r == 0 {
+			return nil, newEvalErrorf(line, col, "division by zero")
 		}
+		return l / r, nil
 	case "%":
-		if r != 0 {
-			o = l % r
-		} else {
-			err = newEvalErrorf(line, col, "division by zero")
+		if r == 0 {
+			return nil, newEvalErrorf(line, col, "division by zero")
 		}
+		return l % r, nil
 	default:
-		err = newEvalErrorf(line, col, "unexpected operator in int infix expression: %s", op)
+		return nil, newEvalErrorf(line, col, "unexpected operator in int infix expression: %s", op)
 	}
-	return
 }
 
-func evalStringInfixExpression(l string, r string, op string, line int, col int) (o interface{}, err error) {
+func evalStringInfixExpression(l string, r string, op string, line int, col int) (interface{}, error) {
 	switch op {
 	case "==":
-		o = l == r
+		return l == r, nil
 	case "!=":
-		o = l != r
+		return l != r, nil
 	case "+":
 		if l == "" {
-			o = r
-		} else if r == "" {
-			o = l
-		} else {
-			o = l + r
+			return r, nil
 		}
+		if r == "" {
+			return l, nil
+		}
+		return l + r, nil
 	default:
-		err = newEvalErrorf(line, col, "unexpected operator in string infix expression: %s", op)
+		return nil, newEvalErrorf(line, col, "unexpected operator in string infix expression: %s", op)
 	}
-	return
 }

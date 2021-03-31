@@ -6,121 +6,112 @@ import (
 	"github.com/blizzy78/copper/ast"
 )
 
-func (ev *Evaluator) evalFieldExpression(f ast.FieldExpression) (o interface{}, err error) {
-	var index interface{}
-	if index, err = ev.eval(f.Index); err != nil {
-		return
+func (ev *Evaluator) evalFieldExpression(f ast.FieldExpression) (interface{}, error) {
+	index, err := ev.eval(f.Index)
+	if err != nil {
+		return nil, err
 	}
 
-	var name string
-	if name, err = toString(index); err != nil {
-		err = newEvalErrorf(f.Index.Line(), f.Index.Col(), "type of index expression in field expression is not string: %T", index)
-		return
+	name, err := toString(index)
+	if err != nil {
+		return nil, newEvalErrorf(f.Index.Line(), f.Index.Col(), "type of index expression in field expression is not string: %T", index)
 	}
 
-	var callee interface{}
-	if callee, err = ev.eval(f.Callee); err != nil {
-		return
+	callee, err := ev.eval(f.Callee)
+	if err != nil {
+		return nil, err
 	}
 
 	calleeValue := reflect.ValueOf(callee)
 	if callee == nil || (calleeValue.Kind() == reflect.Ptr && calleeValue.IsNil()) {
-		err = newEvalErrorf(f.StartLine, f.StartCol, "cannot get field or function '%s' from nil object", name)
-		return
+		return nil, newEvalErrorf(f.StartLine, f.StartCol, "cannot get field or function '%s' from nil object", name)
 	}
 
 	switch calleeValue.Kind() {
 	case reflect.Map:
-		var hash map[string]interface{}
-		if hash, err = toMap(callee); err != nil {
-			return
+		hash, err := toMap(callee)
+		if err != nil {
+			return nil, err
 		}
 
-		o, err = evalFieldExpressionHash(hash, name, f.StartLine, f.StartCol)
+		return evalFieldExpressionHash(hash, name, f.StartLine, f.StartCol)
 
 	default:
-		o, err = evalFieldExpressionNative(callee, name, f.StartLine, f.StartCol)
+		return evalFieldExpressionNative(callee, name, f.StartLine, f.StartCol)
 	}
-
-	return
 }
 
-func evalFieldExpressionNative(i interface{}, name string, line int, col int) (o interface{}, err error) {
+func evalFieldExpressionNative(i interface{}, name string, line int, col int) (interface{}, error) {
 	iValue := reflect.ValueOf(i)
-
 	switch iValue.Kind() {
 	case reflect.Ptr:
-		o, err = evalFieldExpressionNativePtr(i, iValue, name, line, col)
+		return evalFieldExpressionNativePtr(i, iValue, name, line, col)
 	default:
-		o, err = evalFieldExpressionNativeDirect(i, iValue, name, line, col)
+		return evalFieldExpressionNativeDirect(i, iValue, name, line, col)
 	}
-
-	return
 }
 
-func evalFieldExpressionNativeDirect(s interface{}, sValue reflect.Value, name string, line int, col int) (o interface{}, err error) {
-	if o = tryEvalFieldExpressionNativeDirectField(s, sValue, name); o == nil {
-		o = tryEvalFieldExpressionNativeDirectFunc(s, sValue, name)
-	}
-
+func evalFieldExpressionNativeDirect(s interface{}, sValue reflect.Value, name string, line int, col int) (interface{}, error) {
+	o := tryEvalFieldExpressionNativeDirectField(sValue, name)
 	if o == nil {
-		err = newEvalErrorf(line, col, "field or function not found in object of type %T: %s", s, name)
-		return
+		o = tryEvalFieldExpressionNativeDirectFunc(sValue, name)
 	}
-
-	return
-}
-
-func evalFieldExpressionNativePtr(s interface{}, sValue reflect.Value, name string, line int, col int) (o interface{}, err error) {
-	if o = tryEvalFieldExpressionNativePtrField(s, sValue, name); o == nil {
-		o = tryEvalFieldExpressionNativePtrFunc(s, sValue, name)
-	}
-
 	if o == nil {
-		err = newEvalErrorf(line, col, "field or function not found in object of type %T: %s", s, name)
-		return
+		return nil, newEvalErrorf(line, col, "field or function not found in object of type %T: %s", s, name)
 	}
-
-	return
+	return o, nil
 }
 
-func tryEvalFieldExpressionNativeDirectField(s interface{}, sValue reflect.Value, name string) interface{} {
-	if sValue.Kind() == reflect.Struct {
-		if _, ok := sValue.Type().FieldByName(name); ok {
-			return sValue.FieldByName(name).Interface()
-		}
+func evalFieldExpressionNativePtr(s interface{}, sValue reflect.Value, name string, line int, col int) (interface{}, error) {
+	o := tryEvalFieldExpressionNativePtrField(sValue, name)
+	if o == nil {
+		o = tryEvalFieldExpressionNativePtrFunc(sValue, name)
 	}
-	return nil
+	if o == nil {
+		return nil, newEvalErrorf(line, col, "field or function not found in object of type %T: %s", s, name)
+	}
+	return o, nil
 }
 
-func tryEvalFieldExpressionNativePtrField(s interface{}, sValue reflect.Value, name string) interface{} {
+func tryEvalFieldExpressionNativeDirectField(sValue reflect.Value, name string) interface{} {
+	if sValue.Kind() != reflect.Struct {
+		return nil
+	}
+	if _, ok := sValue.Type().FieldByName(name); !ok {
+		return nil
+	}
+	return sValue.FieldByName(name).Interface()
+}
+
+func tryEvalFieldExpressionNativePtrField(sValue reflect.Value, name string) interface{} {
 	sValue = sValue.Elem()
-	if sValue.Kind() == reflect.Struct {
-		if _, ok := sValue.Type().FieldByName(name); ok {
-			return sValue.FieldByName(name).Interface()
-		}
+	if sValue.Kind() != reflect.Struct {
+		return nil
 	}
-	return nil
+	if _, ok := sValue.Type().FieldByName(name); !ok {
+		return nil
+	}
+	return sValue.FieldByName(name).Interface()
 }
 
-func tryEvalFieldExpressionNativeDirectFunc(s interface{}, sValue reflect.Value, name string) interface{} {
-	if _, ok := sValue.Type().MethodByName(name); ok {
-		return sValue.MethodByName(name).Interface()
+func tryEvalFieldExpressionNativeDirectFunc(sValue reflect.Value, name string) interface{} {
+	if _, ok := sValue.Type().MethodByName(name); !ok {
+		return nil
 	}
-	return nil
+	return sValue.MethodByName(name).Interface()
 }
 
-func tryEvalFieldExpressionNativePtrFunc(s interface{}, sValue reflect.Value, name string) interface{} {
-	if _, ok := sValue.Type().MethodByName(name); ok {
-		return sValue.MethodByName(name).Interface()
+func tryEvalFieldExpressionNativePtrFunc(sValue reflect.Value, name string) interface{} {
+	if _, ok := sValue.Type().MethodByName(name); !ok {
+		return nil
 	}
-	return nil
+	return sValue.MethodByName(name).Interface()
 }
 
-func evalFieldExpressionHash(hash map[string]interface{}, name string, line int, col int) (o interface{}, err error) {
-	var ok bool
-	if o, ok = hash[name]; !ok {
-		err = newEvalErrorf(line, col, "key not found in map: %s", name)
+func evalFieldExpressionHash(hash map[string]interface{}, name string, line int, col int) (interface{}, error) {
+	o, ok := hash[name]
+	if !ok {
+		return nil, newEvalErrorf(line, col, "key not found in map: %s", name)
 	}
-	return
+	return o, nil
 }

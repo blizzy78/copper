@@ -65,7 +65,7 @@ func TestScope_ClearSelf(t *testing.T) {
 	testNoValue(&s, "x", is) // removed
 }
 
-func testIntValue(s *Scope, name string, v int, is *is.I) {
+func testIntValue(s *Scope, name string, v int, is *is.I) { //nolint:unparam
 	is.True(s.HasValue(name))
 	actual, ok := s.Value(name)
 	is.Equal(actual.(int), v)

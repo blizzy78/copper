@@ -353,7 +353,7 @@ func TestParse(t *testing.T) {
 				&ast.ExpressionStatement{
 					Expression: &ast.IfExpression{
 						Conditionals: []ast.ConditionalBlock{
-							ast.ConditionalBlock{
+							{
 								Condition: &ast.InfixExpression{
 									Left:     newIdent("x"),
 									Operator: "==",
@@ -382,7 +382,7 @@ func TestParse(t *testing.T) {
 				&ast.ExpressionStatement{
 					Expression: &ast.IfExpression{
 						Conditionals: []ast.ConditionalBlock{
-							ast.ConditionalBlock{
+							{
 								Condition: &ast.InfixExpression{
 									Left:     newIdent("a"),
 									Operator: "==",
@@ -396,7 +396,7 @@ func TestParse(t *testing.T) {
 									},
 								},
 							},
-							ast.ConditionalBlock{
+							{
 								Condition: &ast.InfixExpression{
 									Left:     newIdent("c"),
 									Operator: "==",
@@ -427,7 +427,7 @@ func TestParse(t *testing.T) {
 				&ast.ExpressionStatement{
 					Expression: &ast.IfExpression{
 						Conditionals: []ast.ConditionalBlock{
-							ast.ConditionalBlock{
+							{
 								Condition: &ast.InfixExpression{
 									Left:     newIdent("a"),
 									Operator: "==",
@@ -441,7 +441,7 @@ func TestParse(t *testing.T) {
 									},
 								},
 							},
-							ast.ConditionalBlock{
+							{
 								Condition: &ast.InfixExpression{
 									Left:     newIdent("c"),
 									Operator: "==",
@@ -455,7 +455,7 @@ func TestParse(t *testing.T) {
 									},
 								},
 							},
-							ast.ConditionalBlock{
+							{
 								Condition: &ast.InfixExpression{
 									Left:     newIdent("e"),
 									Operator: "==",
@@ -488,7 +488,7 @@ func TestParse(t *testing.T) {
 				&ast.ExpressionStatement{
 					Expression: &ast.IfExpression{
 						Conditionals: []ast.ConditionalBlock{
-							ast.ConditionalBlock{
+							{
 								Condition: &ast.InfixExpression{
 									Left:     newIdent("a"),
 									Operator: "==",
@@ -502,7 +502,7 @@ func TestParse(t *testing.T) {
 									},
 								},
 							},
-							ast.ConditionalBlock{
+							{
 								Condition: &ast.InfixExpression{
 									Left:     newIdent("c"),
 									Operator: "==",
@@ -516,7 +516,7 @@ func TestParse(t *testing.T) {
 									},
 								},
 							},
-							ast.ConditionalBlock{
+							{
 								Condition: &ast.InfixExpression{
 									Left:     newIdent("e"),
 									Operator: "==",
@@ -530,7 +530,7 @@ func TestParse(t *testing.T) {
 									},
 								},
 							},
-							ast.ConditionalBlock{
+							{
 								Block: ast.Block{
 									Statements: []ast.Statement{
 										&ast.ExpressionStatement{
@@ -554,7 +554,7 @@ func TestParse(t *testing.T) {
 				&ast.ExpressionStatement{
 					Expression: &ast.IfExpression{
 						Conditionals: []ast.ConditionalBlock{
-							ast.ConditionalBlock{
+							{
 								Condition: &ast.InfixExpression{
 									Left:     newIdent("a"),
 									Operator: "==",
@@ -568,7 +568,7 @@ func TestParse(t *testing.T) {
 									},
 								},
 							},
-							ast.ConditionalBlock{
+							{
 								Block: ast.Block{
 									Statements: []ast.Statement{
 										&ast.ExpressionStatement{
@@ -923,7 +923,7 @@ func testExpressionStatement(actual *ast.ExpressionStatement, expected *ast.Expr
 	testExpression(actual.Expression, expected.Expression, t)
 }
 
-func testExpression(actual ast.Expression, expected ast.Expression, t *testing.T) {
+func testExpression(actual ast.Expression, expected ast.Expression, t *testing.T) { //nolint:gocyclo
 	t.Helper()
 
 	if reflect.TypeOf(actual) != reflect.TypeOf(expected) {
@@ -1140,20 +1140,20 @@ func testParser(input string, expected *ast.Program, t *testing.T, lexerOpts ...
 	}
 }
 
-func parse(l *lexer.Lexer, t *testing.T) (prog *ast.Program) {
+func parse(l *lexer.Lexer, t *testing.T) *ast.Program {
 	tCh, doneCh := l.Tokens()
 
 	p := New(tCh, doneCh)
 
-	var err error
-	if prog, err = p.Parse(); err != nil {
+	prog, err := p.Parse()
+	if err != nil {
 		t.Fatalf("error parsing program: %v", err)
 	}
 
-	return
+	return prog
 }
 
-func newLexerString(s string, tb testing.TB, opts ...lexer.Opt) (l *lexer.Lexer) {
+func newLexerString(s string, tb testing.TB, opts ...lexer.Opt) *lexer.Lexer {
 	tb.Helper()
 
 	r := bytes.NewReader([]byte(s))

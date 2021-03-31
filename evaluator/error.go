@@ -7,6 +7,7 @@ import (
 
 type evalError struct {
 	err  error
+	msg  string
 	line int
 	col  int
 }
@@ -19,14 +20,12 @@ func newEvalError(e error, line int, col int) *evalError {
 	}
 }
 
-func newEvalErrorf(line int, col int, s string, args ...interface{}) *evalError {
-	var e error
-	if len(args) > 0 {
-		e = fmt.Errorf(s, args...)
-	} else {
-		e = errors.New(s)
+func newEvalErrorf(line int, col int, format string, args ...interface{}) *evalError {
+	return &evalError{
+		msg:  fmt.Sprintf(format, args...),
+		line: line,
+		col:  col,
 	}
-	return newEvalError(e, line, col)
 }
 
 // IsEvaluationError returns whether e is an evaluation error that occurred in the evaluator.
@@ -37,16 +36,17 @@ func IsEvaluationError(e error) bool {
 
 // ErrorLocation returns the location in the template where the evaluation error e occurred.
 // ok will be true if e actually was an evaluation error.
-func ErrorLocation(e error) (line int, col int, ok bool) {
+func ErrorLocation(e error) (int, int, bool) {
 	var ee *evalError
-	if errors.As(e, &ee) {
-		line = ee.line
-		col = ee.col
-		ok = true
+	if !errors.As(e, &ee) {
+		return 0, 0, false
 	}
-	return
+	return ee.line, ee.col, true
 }
 
-func (e *evalError) Error() string {
+func (e evalError) Error() string {
+	if e.msg != "" {
+		return fmt.Sprintf("evaluation error at line %d, column %d: %s", e.line, e.col, e.msg)
+	}
 	return fmt.Sprintf("evaluation error at line %d, column %d: %v", e.line, e.col, e.err)
 }

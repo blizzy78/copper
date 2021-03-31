@@ -38,12 +38,12 @@ type LiteralStringerFunc func(s string) (interface{}, error)
 type ArgumentResolver interface {
 	// Resolve inspects the type t and returns a value for it. If no actual value can be produced, nil may be returned
 	// as the value. The returned value must be convertible to the type t.
-	Resolve(t reflect.Type) (v interface{}, err error)
+	Resolve(t reflect.Type) (interface{}, error)
 }
 
 // An ArgumentResolverFunc is an adapter type that allows ordinary functions to be used as argument resolvers.
 // If f is a function with the appropriate signature, ArgumentResolverFunc(f) is an argument resolver that calls f.
-type ArgumentResolverFunc func(t reflect.Type) (v interface{}, err error)
+type ArgumentResolverFunc func(t reflect.Type) (interface{}, error)
 
 // New returns a new evaluator, configured with opts.
 func New(opts ...Opt) *Evaluator {
@@ -81,31 +81,35 @@ func WithArgumentResolver(r ArgumentResolver) Opt {
 // Eval evaluates the abstract syntax tree node n and returns its result. The scope s is used to look up and store
 // variable state using identifiers. The scope may be pre-filled with identifiers which can be used during evaluation
 // of expressions.
-func (ev *Evaluator) Eval(n ast.Node, s *scope.Scope) (o interface{}, err error) {
+func (ev *Evaluator) Eval(n ast.Node, s *scope.Scope) (interface{}, error) {
 	ev.scope = s
 	return ev.eval(n)
 }
 
-func (ev *Evaluator) eval(n ast.Node) (o interface{}, err error) {
+func (ev *Evaluator) eval(n ast.Node) (interface{}, error) {
 	switch node := n.(type) {
 	case *ast.Program:
-		o, err = ev.evalProgram(*node)
+		o, err := ev.evalProgram(*node)
+		o = normalize(o)
+		return o, err
 	case *ast.Block:
-		o, err = ev.evalBlock(*node)
+		o, err := ev.evalBlock(*node)
+		o = normalize(o)
+		return o, err
 	case ast.Statement:
-		o, err = ev.evalStatement(node)
+		o, err := ev.evalStatement(node)
+		o = normalize(o)
+		return o, err
 	case ast.Expression:
-		o, err = ev.evalExpression(node)
+		o, err := ev.evalExpression(node)
+		o = normalize(o)
+		return o, err
 	default:
 		panic(fmt.Errorf("unknown node type: %T", n))
 	}
-
-	o = normalize(o)
-
-	return
 }
 
-func normalize(v interface{}) (o interface{}) {
+func normalize(v interface{}) interface{} { //nolint:gocyclo
 	switch value := v.(type) {
 	case int:
 		return int64(value)
@@ -138,6 +142,6 @@ func (f LiteralStringerFunc) String(s string) (interface{}, error) {
 	return f(s)
 }
 
-func (r ArgumentResolverFunc) Resolve(t reflect.Type) (v interface{}, err error) {
+func (r ArgumentResolverFunc) Resolve(t reflect.Type) (interface{}, error) {
 	return r(t)
 }

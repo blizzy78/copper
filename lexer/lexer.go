@@ -67,12 +67,9 @@ func WithStartInCodeMode() Opt {
 // Tokens reads from the lexer's input and writes a sequence of tokens into tCh. If an error occurs
 // when producing tokens, the error is associated with the next token in the channel. Token production
 // stops when there was an error, or when the done channel is closed.
-func (l *Lexer) Tokens() (tCh <-chan *Token, done chan<- struct{}) {
+func (l *Lexer) Tokens() (<-chan *Token, chan<- struct{}) {
 	tokenCh := make(chan *Token)
-	tCh = tokenCh
-
 	doneCh := make(chan struct{})
-	done = doneCh
 
 	startState := l.parseLiteral
 	if l.optStartInCode {
@@ -95,7 +92,7 @@ func (l *Lexer) Tokens() (tCh <-chan *Token, done chan<- struct{}) {
 		}
 	}(startState)
 
-	return
+	return tokenCh, doneCh
 }
 
 func (l *Lexer) parseLiteral(tCh chan<- *Token) stateFunc {
@@ -135,7 +132,7 @@ func (l *Lexer) parseCodeEnd(tCh chan<- *Token) stateFunc {
 	return l.readNextCharsAndThen(2, l.parseLiteral)
 }
 
-func (l *Lexer) parseCode(tCh chan<- *Token) stateFunc {
+func (l *Lexer) parseCode(tCh chan<- *Token) stateFunc { //nolint:gocyclo
 	if err := l.skipWhitespace(); err != nil {
 		return l.parseError(err, l.line, l.col)
 	}
@@ -149,9 +146,7 @@ func (l *Lexer) parseCode(tCh chan<- *Token) stateFunc {
 	}
 
 	switch l.currChar {
-	case '"':
-		fallthrough
-	case '\'':
+	case '"', '\'':
 		return l.parseString
 	case '=':
 		return l.parseAssignOrEqual
@@ -193,9 +188,9 @@ func (l *Lexer) parseCode(tCh chan<- *Token) stateFunc {
 		return l.parseOr
 	case '&':
 		return l.parseAnd
+	default:
+		return l.parseIllegal
 	}
-
-	return l.parseIllegal
 }
 
 func (l *Lexer) parseInt(tCh chan<- *Token) stateFunc {
@@ -227,13 +222,10 @@ func (l *Lexer) parseIdent(tCh chan<- *Token) stateFunc {
 
 	defer func(line int, col int) {
 		literal := b.String()
-
-		var t TokenType
-		var ok bool
-		if t, ok = keywords[literal]; !ok {
+		t, ok := keywords[literal]
+		if !ok {
 			t = Ident
 		}
-
 		tCh <- newToken(t, literal, line, col)
 	}(l.line, l.col)
 
@@ -388,7 +380,7 @@ func (l *Lexer) parseGreaterThanOrGreaterEqual(tCh chan<- *Token) stateFunc {
 
 func (l *Lexer) parseOr(tCh chan<- *Token) stateFunc {
 	if !l.nextCharIs('|') {
-		return l.parseError(newParseError(errors.New("expected ||"), l.line, l.col), l.line, l.col)
+		return l.parseError(newParseErrorf(l.line, l.col, "expected ||"), l.line, l.col)
 	}
 
 	return l.parseToken(Or, "||")
@@ -396,7 +388,7 @@ func (l *Lexer) parseOr(tCh chan<- *Token) stateFunc {
 
 func (l *Lexer) parseAnd(tCh chan<- *Token) stateFunc {
 	if !l.nextCharIs('&') {
-		return l.parseError(newParseError(errors.New("expected &&"), l.line, l.col), l.line, l.col)
+		return l.parseError(newParseErrorf(l.line, l.col, "expected &&"), l.line, l.col)
 	}
 
 	return l.parseToken(And, "&&")
@@ -447,25 +439,22 @@ func (l *Lexer) parseError(err error, line int, col int) stateFunc {
 	}
 }
 
-func (l *Lexer) initialize() (err error) {
-	if err = l.readNextChar(); err != nil {
-		return
+func (l *Lexer) initialize() error {
+	if err := l.readNextChar(); err != nil {
+		return err
 	}
-	err = l.readNextChar()
-
 	l.line = 1
 	l.col = 1
-
-	return
+	return l.readNextChar()
 }
 
-func (l *Lexer) skipWhitespace() (err error) {
+func (l *Lexer) skipWhitespace() error {
 	for !l.currEOF && isWhitespaceChar(l.currChar) {
-		if err = l.readNextChar(); err != nil {
-			break
+		if err := l.readNextChar(); err != nil {
+			return err
 		}
 	}
-	return
+	return nil
 }
 
 func (l *Lexer) isAtCodeStart() bool {
@@ -480,7 +469,7 @@ func (l *Lexer) isAtBlockCommentEnd() bool {
 	return l.currChar == '*' && l.nextCharIs('/')
 }
 
-func (l *Lexer) readNextCharsAndThen(num int, next stateFunc) stateFunc {
+func (l *Lexer) readNextCharsAndThen(num int, next stateFunc) stateFunc { //nolint:unparam
 	for i := 0; i < num; i++ {
 		if err := l.readNextChar(); err != nil {
 			return l.parseError(err, l.line, l.col)
@@ -489,15 +478,15 @@ func (l *Lexer) readNextCharsAndThen(num int, next stateFunc) stateFunc {
 	return next
 }
 
-func (l *Lexer) readNextChar() (err error) {
+func (l *Lexer) readNextChar() error {
 	if l.currEOF {
-		return
+		return nil
 	}
 
 	if l.nextEOF {
 		l.currEOF = true
 		l.col++
-		return
+		return nil
 	}
 
 	switch l.currChar {
@@ -508,23 +497,20 @@ func (l *Lexer) readNextChar() (err error) {
 		l.col++
 	}
 
-	var r rune
-	var i int
-
-	r, i, err = l.r.ReadRune()
+	r, i, err := l.r.ReadRune()
 
 	if i > 0 {
 		l.currChar = l.nextChar
 		l.nextChar = r
 	}
 
-	if err == io.EOF {
+	if errors.Is(err, io.EOF) {
 		l.nextEOF = true
 		l.currChar = l.nextChar
 		err = nil
 	}
 
-	return
+	return err
 }
 
 func (l *Lexer) nextCharIs(c rune) bool {

@@ -7,25 +7,24 @@ import (
 	"github.com/blizzy78/copper/lexer"
 )
 
-func (p *Parser) parseExpression(precedence int) (e ast.Expression, err error) {
+func (p *Parser) parseExpression(precedence int) (ast.Expression, error) {
 	if p.currTokenIs(lexer.EOF) {
-		err = newParseErrorf(p.currToken.Line, p.currToken.Col, "expression expected")
-		return
+		return nil, newParseErrorf(p.currToken.Line, p.currToken.Col, "expression expected")
 	}
 
 	parsePrefixFunc, ok := p.prefixParseFuncs[p.currToken.Type]
 	if !ok {
-		err = newParseErrorf(p.currToken.Line, p.currToken.Col, "no prefix parse function found for %s", p.currToken)
-		return
+		return nil, newParseErrorf(p.currToken.Line, p.currToken.Col, "no prefix parse function found for %s", p.currToken)
 	}
 
-	if e, err = parsePrefixFunc(); err != nil {
-		return
+	e, err := parsePrefixFunc()
+	if err != nil {
+		return nil, err
 	}
 
 	for !p.currTokenIs(lexer.EOF) {
-		var currPrec int
-		if currPrec, ok = p.currPrecedence(); !ok {
+		currPrec, ok := p.currPrecedence()
+		if !ok {
 			// next token is not an operator, so let's stop here
 			break
 		}
@@ -34,170 +33,149 @@ func (p *Parser) parseExpression(precedence int) (e ast.Expression, err error) {
 			break
 		}
 
-		var parseInfixFunc infixParseFunc
-		if parseInfixFunc, ok = p.infixParseFuncs[p.currToken.Type]; !ok {
+		parseInfixFunc, ok := p.infixParseFuncs[p.currToken.Type]
+		if !ok {
 			panic(newParseErrorf(p.currToken.Line, p.currToken.Col, "no infix parse function found for %s", p.currToken))
 		}
 
-		var ok bool
-		if e, ok, err = parseInfixFunc(e, currPrec); !ok || err != nil {
+		e, ok, err = parseInfixFunc(e, currPrec)
+		if err != nil {
+			return nil, err
+		}
+		if !ok {
 			break
 		}
 	}
 
-	return
+	return e, nil
 }
 
-func (p *Parser) parseLiteralExpression() (e ast.Expression, err error) {
-	e = &ast.Literal{
+func (p *Parser) parseLiteralExpression() (ast.Expression, error) {
+	e := ast.Literal{
 		StartLine: p.currToken.Line,
 		StartCol:  p.currToken.Col,
 		Text:      p.currToken.Literal,
 	}
-
-	err = p.readNextToken()
-
-	return
+	return &e, p.readNextToken()
 }
 
-func (p *Parser) parsePrefixExpression() (e ast.Expression, err error) {
+func (p *Parser) parsePrefixExpression() (ast.Expression, error) {
 	op := p.currToken.Literal
 	line := p.currToken.Line
 	col := p.currToken.Col
 
-	if err = p.readNextToken(); err != nil {
-		return
+	if err := p.readNextToken(); err != nil {
+		return nil, err
 	}
 
-	var expr ast.Expression
-	if expr, err = p.parseExpression(precedencePrefix); err != nil {
-		return
+	expr, err := p.parseExpression(precedencePrefix)
+	if err != nil {
+		return nil, err
 	}
 
-	e = &ast.PrefixExpression{
+	return &ast.PrefixExpression{
 		StartLine:  line,
 		StartCol:   col,
 		Operator:   op,
 		Expression: expr,
-	}
-
-	return
+	}, nil
 }
 
-func (p *Parser) parseInfixExpression(left ast.Expression, currPrecedence int) (e ast.Expression, ok bool, err error) {
+func (p *Parser) parseInfixExpression(left ast.Expression, currPrecedence int) (ast.Expression, bool, error) {
 	op := p.currToken.Literal
 
-	if err = p.readNextToken(); err != nil {
-		return
+	if err := p.readNextToken(); err != nil {
+		return nil, false, err
 	}
 
-	var right ast.Expression
-	if right, err = p.parseExpression(currPrecedence); err != nil {
-		return
+	right, err := p.parseExpression(currPrecedence)
+	if err != nil {
+		return nil, false, err
 	}
 
-	e = &ast.InfixExpression{
+	return &ast.InfixExpression{
 		StartLine: left.Line(),
 		StartCol:  left.Col(),
 		Left:      left,
 		Operator:  op,
 		Right:     right,
-	}
-
-	ok = true
-
-	return
+	}, true, nil
 }
 
-func (p *Parser) parseGroupedExpression() (e ast.Expression, err error) {
-	if err = p.readNextToken(); err != nil {
-		return
+func (p *Parser) parseGroupedExpression() (ast.Expression, error) {
+	if err := p.readNextToken(); err != nil {
+		return nil, err
 	}
 
-	if e, err = p.parseExpression(precedenceLowest); err != nil {
-		return
+	e, err := p.parseExpression(precedenceLowest)
+	if err != nil {
+		return nil, err
 	}
 
 	if !p.currTokenIs(lexer.RightParen) {
-		err = newParseErrorf(p.currToken.Line, p.currToken.Col, "right paren expected")
-		return
+		return nil, newParseErrorf(p.currToken.Line, p.currToken.Col, "right paren expected")
 	}
 
-	err = p.readNextToken()
-
-	return
+	return e, p.readNextToken()
 }
 
-func (p *Parser) parseIdentExpression() (e ast.Expression, err error) {
+func (p *Parser) parseIdentExpression() (ast.Expression, error) {
 	return p.parseIdentExpr()
 }
 
-func (p *Parser) parseIdentExpr() (e *ast.Ident, err error) {
-	e = &ast.Ident{
+func (p *Parser) parseIdentExpr() (*ast.Ident, error) {
+	e := ast.Ident{
 		StartLine: p.currToken.Line,
 		StartCol:  p.currToken.Col,
 		Name:      p.currToken.Literal,
 	}
-
-	err = p.readNextToken()
-
-	return
+	return &e, p.readNextToken()
 }
 
-func (p *Parser) parseIntLiteral() (e ast.Expression, err error) {
-	var value int64
-	if value, err = strconv.ParseInt(p.currToken.Literal, 10, 64); err != nil {
-		err = newParseErrorf(p.currToken.Line, p.currToken.Col, "error parsing int literal: %v", err)
-		return
+func (p *Parser) parseIntLiteral() (ast.Expression, error) {
+	value, err := strconv.ParseInt(p.currToken.Literal, 10, 64)
+	if err != nil {
+		return nil, newParseErrorf(p.currToken.Line, p.currToken.Col, "error parsing int literal: %v", err)
 	}
 
-	e = &ast.IntLiteral{
+	e := ast.IntLiteral{
 		StartLine: p.currToken.Line,
 		StartCol:  p.currToken.Col,
 		Value:     value,
 	}
-
-	err = p.readNextToken()
-
-	return
+	return &e, p.readNextToken()
 }
 
-func (p *Parser) parseStringLiteral() (e ast.Expression, err error) {
-	e = &ast.StringLiteral{
+func (p *Parser) parseStringLiteral() (ast.Expression, error) {
+	e := ast.StringLiteral{
 		StartLine: p.currToken.Line,
 		StartCol:  p.currToken.Col,
 		Value:     p.currToken.Literal,
 	}
-
-	err = p.readNextToken()
-
-	return
+	return &e, p.readNextToken()
 }
 
-func (p *Parser) parseBoolLiteral() (e ast.Expression, err error) {
-	e = &ast.BoolLiteral{
+func (p *Parser) parseBoolLiteral() (ast.Expression, error) {
+	e := ast.BoolLiteral{
 		StartLine: p.currToken.Line,
 		StartCol:  p.currToken.Col,
 		Value:     p.currTokenIs(lexer.True),
 	}
-
-	err = p.readNextToken()
-
-	return
+	return &e, p.readNextToken()
 }
 
-func (p *Parser) parseNilLiteral() (e ast.Expression, err error) {
-	e = &ast.NilLiteral{
-		StartLine: p.currToken.Line,
-		StartCol:  p.currToken.Col,
+func (p *Parser) parseNilLiteral() (ast.Expression, error) {
+	if err := p.readNextToken(); err != nil {
+		return nil, err
 	}
 
-	err = p.readNextToken()
-
-	return
+	return &ast.NilLiteral{
+		StartLine: p.currToken.Line,
+		StartCol:  p.currToken.Col,
+	}, nil
 }
 
-func (p *Parser) parseIfExpression() (e ast.Expression, err error) {
+func (p *Parser) parseIfExpression() (ast.Expression, error) {
 	ifLine := p.currToken.Line
 	ifCol := p.currToken.Col
 
@@ -205,8 +183,8 @@ func (p *Parser) parseIfExpression() (e ast.Expression, err error) {
 	blockStartLine := p.currToken.Line
 	blockStartCol := p.currToken.Col
 
-	if err = p.readNextToken(); err != nil {
-		return
+	if err := p.readNextToken(); err != nil {
+		return nil, err
 	}
 
 	conditionals := []ast.ConditionalBlock{}
@@ -215,32 +193,31 @@ func (p *Parser) parseIfExpression() (e ast.Expression, err error) {
 	haveEnd := false
 
 	for !p.currTokenIs(lexer.EOF) {
-		if blockStartTokenType == lexer.Else && !haveElse {
+		switch {
+		case blockStartTokenType == lexer.Else && !haveElse:
 			haveElse = true
-		} else if blockStartTokenType == lexer.Else {
-			err = newParseErrorf(blockStartLine, blockStartCol, "if expression can only have a single else block")
-			break
-		} else if blockStartTokenType == lexer.ElseIf && haveElse {
-			err = newParseErrorf(blockStartLine, blockStartCol, "else block must be last in if expression")
-			break
+		case blockStartTokenType == lexer.Else:
+			return nil, newParseErrorf(blockStartLine, blockStartCol, "if expression can only have a single else block")
+		case blockStartTokenType == lexer.ElseIf && haveElse:
+			return nil, newParseErrorf(blockStartLine, blockStartCol, "else block must be last in if expression")
 		}
 
 		var expr ast.Expression
 		if blockStartTokenType == lexer.If || blockStartTokenType == lexer.ElseIf {
-			if expr, err = p.parseExpression(precedenceLowest); err != nil {
-				return
+			var err error
+			expr, err = p.parseExpression(precedenceLowest)
+			if err != nil {
+				return nil, err
 			}
 		}
 
-		var b *ast.Block
-		var endToken *lexer.Token
-		b, endToken, err = p.parseBlock([]lexer.TokenType{
+		b, endToken, err := p.parseBlock([]lexer.TokenType{
 			lexer.ElseIf,
 			lexer.Else,
 			lexer.End,
 		})
 		if err != nil {
-			return
+			return nil, err
 		}
 
 		c := ast.ConditionalBlock{
@@ -262,14 +239,9 @@ func (p *Parser) parseIfExpression() (e ast.Expression, err error) {
 		blockStartCol = endToken.Col
 	}
 
-	if err != nil {
-		return
-	}
-
 	// might not be needed
 	if !haveEnd {
-		err = newParseErrorf(p.currToken.Line, p.currToken.Col, "premature end of file")
-		return
+		return nil, newParseErrorf(p.currToken.Line, p.currToken.Col, "premature end of file")
 	}
 
 	// might not be needed
@@ -277,51 +249,49 @@ func (p *Parser) parseIfExpression() (e ast.Expression, err error) {
 		panic(newParseErrorf(p.currToken.Line, p.currToken.Col, "no conditionals in if block"))
 	}
 
-	e = &ast.IfExpression{
+	return &ast.IfExpression{
 		StartLine:    ifLine,
 		StartCol:     ifCol,
 		Conditionals: conditionals,
-	}
-
-	return
+	}, nil
 }
 
-func (p *Parser) parseForExpression() (e ast.Expression, err error) {
+func (p *Parser) parseForExpression() (ast.Expression, error) {
 	line := p.currToken.Line
 	col := p.currToken.Col
 
-	if err = p.readNextToken(); err != nil {
-		return
+	if err := p.readNextToken(); err != nil {
+		return nil, err
 	}
 
-	var ident *ast.Ident
-	if ident, err = p.parseIdentExpr(); err != nil {
-		return
+	ident, err := p.parseIdentExpr()
+	if err != nil {
+		return nil, err
 	}
 
 	var statusIdent *ast.Ident
 	if p.currTokenIs(lexer.Comma) {
 		if err = p.readNextToken(); err != nil {
-			return
+			return nil, err
 		}
 
-		if statusIdent, err = p.parseIdentExpr(); err != nil {
-			return
+		statusIdent, err = p.parseIdentExpr()
+		if err != nil {
+			return nil, err
 		}
 	}
 
 	if !p.currTokenIs(lexer.In) {
-		err = newParseErrorf(p.currToken.Line, p.currToken.Col, "in keyword expected")
-		return
+		return nil, newParseErrorf(p.currToken.Line, p.currToken.Col, "in keyword expected")
 	}
 
 	if err = p.readNextToken(); err != nil {
-		return
+		return nil, err
 	}
 
-	var expr ast.Expression
-	if expr, err = p.parseExpression(precedenceLowest); err != nil {
-		return
+	expr, err := p.parseExpression(precedenceLowest)
+	if err != nil {
+		return nil, err
 	}
 
 	// TODO: replace all this by call to parseBlock
@@ -336,28 +306,23 @@ func (p *Parser) parseForExpression() (e ast.Expression, err error) {
 			break
 		}
 
-		var st ast.Statement
-		if st, err = p.parseStatement(); err != nil {
-			break
+		st, err := p.parseStatement()
+		if err != nil {
+			return nil, err
 		}
 
 		stmts = append(stmts, st)
 	}
 
-	if err != nil {
-		return
-	}
-
 	if !p.currTokenIs(lexer.End) {
-		err = newParseErrorf(p.currToken.Line, p.currToken.Col, "end of for expression not found")
-		return
+		return nil, newParseErrorf(p.currToken.Line, p.currToken.Col, "end of for expression not found")
 	}
 
 	if err = p.readNextToken(); err != nil {
-		return
+		return nil, err
 	}
 
-	e = &ast.ForExpression{
+	return &ast.ForExpression{
 		StartLine:   line,
 		StartCol:    col,
 		Ident:       *ident,
@@ -368,53 +333,44 @@ func (p *Parser) parseForExpression() (e ast.Expression, err error) {
 			StartCol:   blockCol,
 			Statements: stmts,
 		},
-	}
-
-	return
+	}, nil
 }
 
-func (p *Parser) parseBlock(endTokenTypes []lexer.TokenType) (b *ast.Block, endToken *lexer.Token, err error) {
+func (p *Parser) parseBlock(endTokenTypes []lexer.TokenType) (*ast.Block, *lexer.Token, error) {
 	line := p.currToken.Line
 	col := p.currToken.Col
 
 	statements := []ast.Statement{}
 
 	for !p.currTokenIs(lexer.EOF) && !p.currTokenIsOneOf(endTokenTypes) {
-		var s ast.Statement
-		if s, err = p.parseStatement(); err != nil {
-			break
+		s, err := p.parseStatement()
+		if err != nil {
+			return nil, nil, err
 		}
 
 		statements = append(statements, s)
 	}
 
-	if err != nil {
-		return
-	}
-
-	endToken = p.currToken
+	endToken := p.currToken
 
 	if p.currTokenIs(lexer.EOF) {
-		err = newParseErrorf(p.currToken.Line, p.currToken.Col, "end of block not found")
-		return
+		return nil, nil, newParseErrorf(p.currToken.Line, p.currToken.Col, "end of block not found")
 	}
 
-	if err = p.readNextToken(); err != nil {
-		return
+	if err := p.readNextToken(); err != nil {
+		return nil, nil, err
 	}
 
-	b = &ast.Block{
+	return &ast.Block{
 		StartLine:  line,
 		StartCol:   col,
 		Statements: statements,
-	}
-
-	return
+	}, endToken, nil
 }
 
-func (p *Parser) parseCallExpression(left ast.Expression, currPrecedence int) (e ast.Expression, ok bool, err error) {
-	if err = p.readNextToken(); err != nil {
-		return
+func (p *Parser) parseCallExpression(left ast.Expression, currPrecedence int) (ast.Expression, bool, error) {
+	if err := p.readNextToken(); err != nil {
+		return nil, false, err
 	}
 
 	params := []ast.Expression{}
@@ -424,9 +380,9 @@ func (p *Parser) parseCallExpression(left ast.Expression, currPrecedence int) (e
 			break
 		}
 
-		var param ast.Expression
-		if param, err = p.parseExpression(precedenceLowest); err != nil {
-			break
+		param, err := p.parseExpression(precedenceLowest)
+		if err != nil {
+			return nil, false, err
 		}
 
 		params = append(params, param)
@@ -436,122 +392,98 @@ func (p *Parser) parseCallExpression(left ast.Expression, currPrecedence int) (e
 		}
 
 		if !p.currTokenIs(lexer.Comma) {
-			err = newParseErrorf(p.currToken.Line, p.currToken.Col, "comma expected")
-			break
+			return nil, false, newParseErrorf(p.currToken.Line, p.currToken.Col, "comma expected")
 		}
 
 		if err = p.readNextToken(); err != nil {
-			break
+			return nil, false, err
 		}
 	}
 
-	if err != nil {
-		return
-	}
-
 	if !p.currTokenIs(lexer.RightParen) {
-		err = newParseErrorf(p.currToken.Line, p.currToken.Col, "right paren expected")
-		return
+		return nil, false, newParseErrorf(p.currToken.Line, p.currToken.Col, "right paren expected")
 	}
 
-	if err = p.readNextToken(); err != nil {
-		return
+	if err := p.readNextToken(); err != nil {
+		return nil, false, err
 	}
 
-	e = &ast.CallExpression{
+	return &ast.CallExpression{
 		StartLine: left.Line(),
 		StartCol:  left.Col(),
 		Callee:    left,
 		Params:    params,
-	}
-
-	ok = true
-
-	return
+	}, true, nil
 }
 
-func (p *Parser) parseFieldExpression(left ast.Expression, currPrecedence int) (e ast.Expression, ok bool, err error) {
+func (p *Parser) parseFieldExpression(left ast.Expression, currPrecedence int) (ast.Expression, bool, error) {
 	dot := p.currTokenIs(lexer.Dot)
 
-	if err = p.readNextToken(); err != nil {
-		return
+	if err := p.readNextToken(); err != nil {
+		return nil, false, err
 	}
 
 	// x.y -- which is syntactic sugar for: x["y"]
 	if dot {
-		if p.currTokenIs(lexer.Ident) {
-			s := ast.StringLiteral{
-				StartLine: p.currToken.Line,
-				StartCol:  p.currToken.Col,
-				Value:     p.currToken.Literal,
-			}
-			e = &ast.FieldExpression{
-				StartLine: left.Line(),
-				StartCol:  left.Col(),
-				Callee:    left,
-				Index:     &s,
-			}
-
-			ok = true
-		} else {
-			err = newParseErrorf(p.currToken.Line, p.currToken.Col, "expected identifier as field index")
-		}
-	} else if !dot {
-		var expr ast.Expression
-		if expr, err = p.parseExpression(precedenceLowest); err != nil {
-			return
+		if !p.currTokenIs(lexer.Ident) {
+			return nil, false, newParseErrorf(p.currToken.Line, p.currToken.Col, "expected identifier as field index")
 		}
 
-		if !p.currTokenIs(lexer.RightBracket) {
-			err = newParseErrorf(p.currToken.Line, p.currToken.Col, "expected right bracket")
-			return
-		}
-
-		e = &ast.FieldExpression{
+		return &ast.FieldExpression{
 			StartLine: left.Line(),
 			StartCol:  left.Col(),
 			Callee:    left,
-			Index:     expr,
-		}
-
-		ok = true
+			Index: &ast.StringLiteral{
+				StartLine: p.currToken.Line,
+				StartCol:  p.currToken.Col,
+				Value:     p.currToken.Literal,
+			},
+		}, true, p.readNextToken()
 	}
 
-	if err == nil {
-		err = p.readNextToken()
+	expr, err := p.parseExpression(precedenceLowest)
+	if err != nil {
+		return nil, false, err
 	}
 
-	return
+	if !p.currTokenIs(lexer.RightBracket) {
+		return nil, false, newParseErrorf(p.currToken.Line, p.currToken.Col, "expected right bracket")
+	}
+
+	e := ast.FieldExpression{
+		StartLine: left.Line(),
+		StartCol:  left.Col(),
+		Callee:    left,
+		Index:     expr,
+	}
+	return &e, true, p.readNextToken()
 }
 
-func (p *Parser) parseCaptureExpression() (e ast.Expression, err error) {
+func (p *Parser) parseCaptureExpression() (ast.Expression, error) {
 	line := p.currToken.Line
 	col := p.currToken.Col
 
-	if err = p.readNextToken(); err != nil {
-		return
+	if err := p.readNextToken(); err != nil {
+		return nil, err
 	}
 
-	var b *ast.Block
-	if b, _, err = p.parseBlock([]lexer.TokenType{lexer.End}); err != nil {
-		return
+	b, _, err := p.parseBlock([]lexer.TokenType{lexer.End})
+	if err != nil {
+		return nil, err
 	}
-
-	e = &ast.CaptureExpression{
+	return &ast.CaptureExpression{
 		StartLine: line,
 		StartCol:  col,
 		Block:     *b,
-	}
-
-	return
+	}, nil
 }
 
-func (p *Parser) parseHashExpression() (e ast.Expression, err error) {
+func (p *Parser) parseHashExpression() (ast.Expression, error) {
 	line := p.currToken.Line
 	col := p.currToken.Col
 
-	if err = p.readNextToken(); err != nil {
-		return
+	if err := p.readNextToken(); err != nil {
+		return nil, err
 	}
 
 	values := map[string]ast.Expression{}
@@ -564,51 +496,46 @@ func (p *Parser) parseHashExpression() (e ast.Expression, err error) {
 
 		if !first {
 			if !p.currTokenIs(lexer.Comma) {
-				err = newParseErrorf(p.currToken.Line, p.currToken.Col, "expected comma before next hash element")
-				break
+				return nil, newParseErrorf(p.currToken.Line, p.currToken.Col, "expected comma before next hash element")
 			}
 
-			if err = p.readNextToken(); err != nil {
-				return
+			if err := p.readNextToken(); err != nil {
+				return nil, err
 			}
 		}
 
 		keyLine := p.currToken.Line
 		keyCol := p.currToken.Col
 
-		var keyExpr ast.Expression
-		if keyExpr, err = p.parseExpression(precedenceLowest); err != nil {
-			break
+		keyExpr, err := p.parseExpression(precedenceLowest)
+		if err != nil {
+			return nil, err
 		}
 
 		if _, ok := keyExpr.(*ast.StringLiteral); !ok {
-			err = newParseErrorf(keyLine, keyCol, "key in hash expression is not a string: %T", keyExpr)
-			break
+			return nil, newParseErrorf(keyLine, keyCol, "key in hash expression is not a string: %T", keyExpr)
 		}
 
 		if !p.currTokenIs(lexer.Colon) {
-			err = newParseErrorf(p.currToken.Line, p.currToken.Col, "expected colon after key in hash expression")
-			break
+			return nil, newParseErrorf(p.currToken.Line, p.currToken.Col, "expected colon after key in hash expression")
 		}
 
 		if err = p.readNextToken(); err != nil {
-			return
+			return nil, err
 		}
 
 		key := keyExpr.(*ast.StringLiteral).Value
 		if key == "" {
-			err = newParseErrorf(keyLine, keyCol, "empty key in hash expression")
-			break
+			return nil, newParseErrorf(keyLine, keyCol, "empty key in hash expression")
 		}
 
 		if _, ok := values[key]; ok {
-			err = newParseErrorf(keyLine, keyCol, "duplicate key in hash expression: %s", key)
-			break
+			return nil, newParseErrorf(keyLine, keyCol, "duplicate key in hash expression: %s", key)
 		}
 
-		var value ast.Expression
-		if value, err = p.parseExpression(precedenceLowest); err != nil {
-			break
+		value, err := p.parseExpression(precedenceLowest)
+		if err != nil {
+			return nil, err
 		}
 
 		values[key] = value
@@ -616,24 +543,17 @@ func (p *Parser) parseHashExpression() (e ast.Expression, err error) {
 		first = false
 	}
 
-	if err != nil {
-		return
-	}
-
 	if !p.currTokenIs(lexer.RightBrace) {
-		err = newParseErrorf(p.currToken.Line, p.currToken.Col, "expected right brace to end hash expression")
-		return
+		return nil, newParseErrorf(p.currToken.Line, p.currToken.Col, "expected right brace to end hash expression")
 	}
 
-	if err = p.readNextToken(); err != nil {
-		return
+	if err := p.readNextToken(); err != nil {
+		return nil, err
 	}
 
-	e = &ast.HashExpression{
+	return &ast.HashExpression{
 		StartLine: line,
 		StartCol:  col,
 		Values:    values,
-	}
-
-	return
+	}, nil
 }

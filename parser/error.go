@@ -7,6 +7,7 @@ import (
 
 type parseError struct {
 	err  error
+	msg  string
 	line int
 	col  int
 }
@@ -19,14 +20,12 @@ func newParseError(e error, line int, col int) *parseError {
 	}
 }
 
-func newParseErrorf(line int, col int, s string, args ...interface{}) *parseError {
-	var e error
-	if len(args) > 0 {
-		e = fmt.Errorf(s, args...)
-	} else {
-		e = errors.New(s)
+func newParseErrorf(line int, col int, format string, args ...interface{}) *parseError {
+	return &parseError{
+		msg:  fmt.Sprintf(format, args...),
+		line: line,
+		col:  col,
 	}
-	return newParseError(e, line, col)
 }
 
 // IsParseError returns whether e is a parse error that occurred in the parser.
@@ -35,6 +34,9 @@ func IsParseError(e error) bool {
 	return errors.As(e, &pe)
 }
 
-func (e *parseError) Error() string {
+func (e parseError) Error() string {
+	if e.msg != "" {
+		return fmt.Sprintf("parse error at line %d, column %d: %s", e.line, e.col, e.msg)
+	}
 	return fmt.Sprintf("parse error at line %d, column %d: %v", e.line, e.col, e.err)
 }
