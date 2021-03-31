@@ -1,4 +1,4 @@
-[![Build Status](https://travis-ci.org/blizzy78/copper.svg?branch=master)](https://travis-ci.org/blizzy78/copper) [![GoDoc](https://godoc.org/github.com/blizzy78/copper?status.svg)](https://godoc.org/github.com/blizzy78/copper)
+[![Build Status](https://travis-ci.org/blizzy78/copper.svg?branch=master)](https://travis-ci.org/blizzy78/copper) [![GoDoc](https://godoc.org/github.com/blizzy78/copper?status.svg)](https://godoc.org/github.com/blizzy78/copper) [![Coverage Status](https://coveralls.io/repos/github/blizzy78/copper/badge.svg?branch=master)](https://coveralls.io/github/blizzy78/copper?branch=master)
 
 
 Copper Template Rendering Engine
