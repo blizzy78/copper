@@ -17,10 +17,9 @@ import (
 
 // Renderer parses templates, evaluates their code, and writes out the output.
 type Renderer struct {
-	loader            Loader
-	argumentResolvers []evaluator.ArgumentResolver
-	scopeData         map[string]interface{}
-	templateFuncName  string
+	loader           Loader
+	scopeData        map[string]interface{}
+	templateFuncName string
 }
 
 // A Loader loads a template with a specific name and returns it as a reader.
@@ -54,16 +53,6 @@ func NewRenderer(loader Loader, opts ...Opt) *Renderer {
 	}
 
 	return r
-}
-
-// WithArgumentResolver configures a renderer to use r to automatically resolve additional arguments of
-// method or function calls in a template. The default is to only resolve the current scope.Scope.
-//
-// WithArgumentResolver may be used multiple times to configure additional resolvers.
-func WithArgumentResolver(r evaluator.ArgumentResolver) Opt {
-	return func(rend *Renderer) {
-		rend.argumentResolvers = append(rend.argumentResolvers, r)
-	}
 }
 
 // WithScopeData configures a renderer to provide additional data to all templates being rendered.
@@ -146,22 +135,15 @@ func (r *Renderer) Render(ctx context.Context, w io.Writer, name string, data ma
 	}
 	defer rd.Close()
 
-	ls := evaluator.LiteralStringerFunc(func(s string) (interface{}, error) {
-		return SafeString(s), nil
-	})
-
-	ra := evaluator.ArgumentResolverFunc(func(t reflect.Type) (interface{}, error) {
-		return resolveContext(t, ctx)
-	})
-
-	evaluatorOpts := make([]evaluator.Opt, len(r.argumentResolvers)+2)
-	evaluatorOpts[0] = evaluator.WithLiteralStringer(ls)
-	evaluatorOpts[1] = evaluator.WithArgumentResolver(ra)
-	for i := 0; i < len(r.argumentResolvers); i++ {
-		evaluatorOpts[2+i] = evaluator.WithArgumentResolver(r.argumentResolvers[i])
-	}
-
-	if err = Render(rd, w, data, &rendererScope, evaluatorOpts...); err != nil {
+	err = Render(rd, w, data, &rendererScope,
+		evaluator.WithLiteralStringer(evaluator.LiteralStringerFunc(func(s string) (interface{}, error) {
+			return SafeString(s), nil
+		})),
+		evaluator.WithArgumentResolver(evaluator.ArgumentResolverFunc(func(t reflect.Type) (interface{}, error) {
+			return resolveContext(t, ctx)
+		})),
+	)
+	if err != nil {
 		return fmt.Errorf("error rendering template %s: %w", name, err)
 	}
 
@@ -173,17 +155,16 @@ func (r *Renderer) Render(ctx context.Context, w io.Writer, name string, data ma
 func Render(r io.Reader, w io.Writer, data map[string]interface{}, s *scope.Scope, evaluatorOpts ...evaluator.Opt) error {
 	templateScope := newTemplateScope(data, s)
 
-	ra := evaluator.ArgumentResolverFunc(func(t reflect.Type) (interface{}, error) {
-		return resolveScope(t, templateScope)
-	})
+	evaluatorOpts = append(
+		[]evaluator.Opt{
+			evaluator.WithArgumentResolver(evaluator.ArgumentResolverFunc(func(t reflect.Type) (interface{}, error) {
+				return resolveScope(t, templateScope)
+			})),
+		},
+		evaluatorOpts...,
+	)
 
-	newEvaluatorOpts := make([]evaluator.Opt, len(evaluatorOpts)+1)
-	newEvaluatorOpts[0] = evaluator.WithArgumentResolver(ra)
-	for i := 0; i < len(evaluatorOpts); i++ {
-		newEvaluatorOpts[1+i] = evaluatorOpts[i]
-	}
-
-	o, err := render(r, templateScope, newEvaluatorOpts...)
+	o, err := render(r, templateScope, evaluatorOpts...)
 	if err != nil {
 		return err
 	}

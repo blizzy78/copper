@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"io"
-	"reflect"
 	"strings"
 	"testing"
 
@@ -19,7 +18,7 @@ type FooData string
 func TestRenderer_Render(t *testing.T) {
 	is := is.New(t)
 
-	tmpl1 := `hello <% t("tmpl2", { "name": "world " + foo() }) %>!`
+	tmpl1 := `hello <% t("tmpl2", { "name": "world " + foo(" baz") + " " + scopeVar }) %>!`
 	tmpl2 := `<% safe(name) %>`
 
 	l := LoaderFunc(func(name string) (io.ReadCloser, error) {
@@ -29,25 +28,27 @@ func TestRenderer_Render(t *testing.T) {
 		return io.NopCloser(strings.NewReader(tmpl2)), nil
 	})
 
-	foo := func(f FooData) string {
-		return string(f)
-	}
+	type ctxKey string
+	var valueFromCtx string
 
-	fooData := FooData("bar")
-	ra := evaluator.ArgumentResolverFunc(func(t reflect.Type) (interface{}, error) {
-		if reflect.ValueOf(fooData).Type().ConvertibleTo(t) {
-			return fooData, nil
-		}
-		return nil, nil
-	})
-
-	r := NewRenderer(l, WithScopeData("safe", safe), WithScopeData("foo", foo), WithArgumentResolver(ra))
+	r := NewRenderer(l,
+		WithScopeData("safe", safe),
+		WithScopeData("foo", func(s string, ctx context.Context, sc *scope.Scope) string {
+			valueFromCtx = ctx.Value(ctxKey("key")).(string)
+			sc.Set("scopeVar", "scopeValue")
+			return "bar" + s
+		}),
+	)
 
 	buf := bytes.Buffer{}
 
-	err := r.Render(context.Background(), &buf, "tmpl1", nil)
+	ctx := context.Background()
+	ctx = context.WithValue(ctx, ctxKey("key"), "value")
+
+	err := r.Render(ctx, &buf, "tmpl1", nil)
 	is.NoErr(err)
-	is.Equal(buf.String(), "hello world bar!")
+	is.Equal(buf.String(), "hello world bar baz scopeValue!")
+	is.Equal(valueFromCtx, "value")
 }
 
 func TestRender(t *testing.T) {
