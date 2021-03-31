@@ -2,12 +2,16 @@
 	"folders": [
 		{
 			"path": "."
+		},
+		{
+			"path": "_fuzz"
 		}
 	],
 	"extensions": {
 		"recommendations": [
 			"golang.go",
-			"EditorConfig.EditorConfig"
+			"EditorConfig.EditorConfig",
+			"rogalmic.bash-debug"
 		]
 	}
 }

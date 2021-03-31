@@ -1,6 +1,4 @@
-// +build gofuzz
-
-package lexer
+package fuzz
 
 import (
 	"bytes"
@@ -18,7 +16,7 @@ import (
 	_ "github.com/dvyukov/go-fuzz/go-fuzz-dep"
 )
 
-func Fuzz(data []byte) (ret int) {
+func Fuzz(data []byte) int {
 	if len(data) <= 2 {
 		return 0
 	}
@@ -42,12 +40,13 @@ func Fuzz(data []byte) (ret int) {
 		if er := toError(recover()); er != nil {
 			msg := er.Error()
 			switch msg {
-			case "maxExclusive must be greater than or equal to minInclusive":
-				fallthrough
-			case "cannot get length of nil":
+			case "maxExclusive must be greater than or equal to minInclusive",
+				"unsupported type or nil":
+
 				// okay
+
 			default:
-				if strings.HasPrefix(msg, "cannot get length of unsupported type:") {
+				if strings.HasPrefix(msg, "cannot resolve argument #") {
 					// okay
 					return
 				}
